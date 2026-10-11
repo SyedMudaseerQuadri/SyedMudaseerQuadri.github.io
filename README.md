@@ -71,6 +71,11 @@ and push. Recruiters always download it as `Syed-Mudaseer-UIUX-Resume.pdf`.
 it into an AI summary, a word game and spaced flashcards. Researched, designed,
 built as a working app and usability-tested end to end. Full case study on the site.
 
+**T Vastra** — a black, premium storefront for an Indian embroidered-tee label.
+Built around a signature "venom" colour shift (live SVG tees), micro-interactions
+on every product card, and an independent AI code review before handover.
+Full case study on the site; [live demo store](https://syedmudaseerquadri.github.io/tvastra-store/).
+
 ## Contact
 
 - ✉️ [syed.designuiux@gmail.com](mailto:syed.designuiux@gmail.com)
