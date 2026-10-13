@@ -74,7 +74,7 @@ built as a working app and usability-tested end to end. Full case study on the s
 **T Vastra** — a black, premium storefront for an Indian embroidered-tee label.
 Built around a signature "venom" colour shift (live SVG tees), micro-interactions
 on every product card, and an independent AI code review before handover.
-Full case study on the site; [live demo store](https://syedmudaseerquadri.github.io/tvastra-store/).
+Full case study on the site; the working store is private (demo on request).
 
 ## Contact
 
