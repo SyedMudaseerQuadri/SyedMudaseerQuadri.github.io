@@ -2153,20 +2153,13 @@
     }
     function cloudCard() {
       const inner = !sb
-        ? `<div class="meta">Cloud sync couldn't load (offline?). Everything still saves on this device.</div>`
-        : cloudUser
-          ? `<div class="meta">Signed in as <b style="color:var(--washi)">${esc(cloudUser.email || "")}</b>. This device syncs with your other devices automatically.${lastSync ? ` Last synced ${lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : ""}</div>
+        ? `<div class="meta">Cloud sync couldn't load (offline?). Changes save on this device and sync next time you're online.</div>`
+        : `<div class="meta">Signed in as <b style="color:var(--washi)">${esc(cloudUser ? (cloudUser.email || "").replace(/@syedmudaseer\.com$/, "") : "")}</b>. This device syncs with your other devices automatically.${lastSync ? ` Last synced ${lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : ""}</div>
       <div class="row">
         <button class="gold" style="flex:1" onclick="act.cloudSync()">Sync now</button>
         <button class="ghost" style="flex:1" onclick="act.cloudOut()">Sign out</button>
-      </div>`
-          : `<div class="meta">Sign in to keep this device and your phone/PC on the same data. Use the same email and password on every device.</div>
-      <input id="cEmail" type="email" autocomplete="email" placeholder="Email">
-      <input id="cPass" type="password" autocomplete="current-password" placeholder="Password (6+ characters)">
-      <div class="row">
-        <button class="gold" style="flex:1" ${cloudBusy ? "disabled" : ""} onclick="act.cloudIn(false)">Sign in</button>
-        <button class="ghost" style="flex:1" ${cloudBusy ? "disabled" : ""} onclick="act.cloudIn(true)">Create account</button>
-      </div>`;
+      </div>
+      <div class="meta">Signing out uploads your changes, then erases this device's copy.</div>`;
       return `<div class="card col" style="gap:10px;margin-top:16px;border:1px solid #3A2E20" id="cloudcard">
       <div class="section">☁️ CLOUD SYNC</div>
       ${inner}
@@ -2177,32 +2170,71 @@
       const el = document.getElementById("cloudcard");
       if (el) el.outerHTML = cloudCard();
     }
+
+    // ---- login gate ----
+    // Nothing loads or renders until Supabase confirms who you are. The page
+    // code is public (it's a website), so the real lock is on the data: every
+    // row is readable only by its owner, and sign-ups are closed in the
+    // database (supabase-setup.sql). Usernames map to an internal email.
+    const USER_DOMAIN = "@syedmudaseer.com";
+    let gateMsg = "", gateBusy = false;
+    function showGate() {
+      document.getElementById("app").innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
+      <form class="raid" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px;text-align:left" onsubmit="event.preventDefault();act.gateIn()">
+        <div class="section" style="margin:0">🔒 THE SYSTEM</div>
+        <div class="meta">Private. Sign in to continue.</div>
+        <input id="gUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username">
+        <input id="gPass" type="password" autocomplete="current-password" placeholder="Password">
+        <button class="gold" type="submit" ${gateBusy ? "disabled" : ""}>${gateBusy ? "Signing in…" : "Sign in"}</button>
+        ${gateMsg ? `<div style="font-size:13px;color:var(--vermilion)">${esc(gateMsg)}</div>` : ""}
+      </form>
+    </div>`;
+      const u = document.getElementById("gUser"); if (u && !gateBusy) u.focus();
+    }
+    async function enterApp() {
+      if (navigator.onLine && sb) await Promise.race([syncState().catch(() => { }), new Promise(r => setTimeout(r, 4000))]);
+      load(); render(); loadWorkTotals();
+      if (cloudUser) sync();
+    }
+    // Erase every trace of the System from this browser.
+    async function wipeDevice() {
+      [KEY, SYNC_REV, LOG_CURSOR].forEach(k => { try { localStorage.removeItem(k); } catch (e) { } });
+      if (db) { try { db.close(); } catch (e) { } db = null; }
+      await new Promise(res => { const q = indexedDB.deleteDatabase("lifesys-db"); q.onsuccess = res; q.onerror = res; q.onblocked = res; });
+    }
     Object.assign(act, {
-      async cloudIn(create) {
-        const em = (document.getElementById("cEmail").value || "").trim(), pw = document.getElementById("cPass").value || "";
-        if (!em || pw.length < 6) { cloudMsg = "Enter your email and a password of at least 6 characters."; refreshCloudCard(); return; }
-        cloudBusy = true; cloudMsg = create ? "Creating account…" : "Signing in…"; refreshCloudCard();
-        const r = create
-          ? await sb.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.href.split("#")[0] } })
-          : await sb.auth.signInWithPassword({ email: em, password: pw });
-        cloudBusy = false;
-        if (r.error) { cloudMsg = "❌ " + r.error.message; refreshCloudCard(); return; }
-        if (create && !r.data.session) { cloudMsg = "📧 Check your email and tap the confirmation link, then come back and sign in."; refreshCloudCard(); return; }
-        cloudUser = r.data.user; cloudMsg = "Syncing…"; refreshCloudCard();
-        sync();
+      async gateIn() {
+        if (gateBusy) return;
+        const raw = (document.getElementById("gUser").value || "").trim().toLowerCase();
+        const pw = document.getElementById("gPass").value || "";
+        if (!raw || !pw) { gateMsg = "Enter your username and password."; showGate(); return; }
+        if (!sb) { gateMsg = "Can't reach the login service — check your connection."; showGate(); return; }
+        gateBusy = true; gateMsg = ""; showGate();
+        const r = await sb.auth.signInWithPassword({ email: raw.includes("@") ? raw : raw + USER_DOMAIN, password: pw });
+        gateBusy = false;
+        if (r.error) { gateMsg = "Wrong username or password."; showGate(); return; }
+        cloudUser = r.data.user;
+        document.getElementById("app").innerHTML = "";
+        await enterApp();
       },
       async cloudOut() {
+        cloudMsg = "Uploading your changes…"; refreshCloudCard();
+        clearTimeout(pushTimer); pushTimer = null;
+        await sync();
+        if (cloudMsg) {   // sync() clears the message only when everything uploaded
+          if (!confirm("Your latest changes didn't upload (" + cloudMsg + "). Sign out anyway and lose them on this device?")) { refreshCloudCard(); return; }
+        }
         await sb.auth.signOut();
-        cloudUser = null; cloudMsg = "Signed out. This device keeps working on its own copy."; refreshCloudCard();
+        await wipeDevice();
+        location.reload();
       },
       cloudSync() { cloudMsg = "Syncing…"; refreshCloudCard(); sync(); },
     });
     if (sb) {
       sb.auth.onAuthStateChange((ev, session) => {
-        const was = cloudUser && cloudUser.id;
         cloudUser = session ? session.user : null;
-        if (cloudUser && cloudUser.id !== was && S) sync();
-        if (S) refreshCloudCard();
+        if (ev === "SIGNED_OUT" && S) location.reload();   // session ended elsewhere: back to the gate
+        else if (S) refreshCloudCard();
       });
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") sync();
@@ -2213,16 +2245,19 @@
     }
 
     openDB().then(async () => {
-      // pull the newest cloud save BEFORE the day-rollover logic in load() runs on stale data
+      let signedIn = false;
       if (sb) {
         try {
           const { data } = await sb.auth.getSession();
           cloudUser = data.session ? data.session.user : null;
-          if (cloudUser && navigator.onLine) await Promise.race([syncState(), new Promise(r => setTimeout(r, 4000))]);
+          signedIn = !!cloudUser;
         } catch (e) { }
+      } else {
+        // login library didn't load (offline): a device that signed in before keeps working locally
+        signedIn = !!lsGet("sb-mbncpbuypmtalevnpicq-auth-token");
       }
-      load(); render(); loadWorkTotals();
-      if (cloudUser) sync();
+      if (!signedIn) return showGate();
+      await enterApp();
     });
   </script>
 </body>
