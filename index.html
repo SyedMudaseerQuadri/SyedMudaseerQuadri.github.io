@@ -283,14 +283,111 @@
         display: none;
       }
 
-      /* phones: the bar carries only the CTA */
+      /* phones: brand + section links move into the hamburger sheet */
       .nav__logo {
         display: none;
       }
 
-      .nav {
-        justify-content: flex-end;
+      .nav .nav__burger,
+      .menu .nav__burger {
+        display: inline-flex;
       }
+    }
+
+    /* ================================================= MOBILE MENU */
+    .nav__burger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 44px;
+      height: 44px;
+      padding: 0 11px;
+      background: transparent;
+      border: 1.5px solid var(--ink);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .nav__burger span {
+      display: block;
+      height: 2px;
+      background: var(--ink);
+      transition: transform 0.3s var(--ease), opacity 0.2s;
+    }
+
+    .nav__burger[aria-expanded="true"] span:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+
+    .nav__burger[aria-expanded="true"] span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .nav__burger[aria-expanded="true"] span:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+
+    .menu {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      display: flex;
+      flex-direction: column;
+      padding: 18px var(--gutter) 32px;
+      background: var(--paper);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-12px);
+      transition: opacity 0.3s var(--ease), transform 0.3s var(--ease), visibility 0s 0.3s;
+    }
+
+    .menu.is-open {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+    }
+
+    .menu__top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .menu__links {
+      display: flex;
+      flex-direction: column;
+      margin-top: 18px;
+    }
+
+    .menu__links a {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 16px 0;
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 28px;
+      color: var(--ink);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .menu__links a .kanji {
+      font-size: 14px;
+      color: var(--seal);
+      width: 18px;
+    }
+
+    .menu__cta {
+      margin-top: auto;
+      justify-content: center;
+    }
+
+    body.menu-open {
+      overflow: hidden;
     }
 
     /* ================================================= HERO */
@@ -1574,6 +1671,8 @@
 <body>
   <!-- ============================ NAV ============================ -->
   <header class="nav" id="nav">
+    <button class="nav__burger" type="button" aria-label="Open menu" aria-expanded="false"
+      aria-controls="menu"><span></span><span></span><span></span></button>
     <a class="nav__logo" href="#top" aria-label="Syed Mudaseer — home">
       <span class="hanko" aria-hidden="true">修</span>
       <span class="name">Syed Mudaseer</span>
@@ -1586,6 +1685,26 @@
       <a class="nav__cta" href="#contact">Start a project →</a>
     </nav>
   </header>
+
+  <!-- ============================ MOBILE MENU ============================ -->
+  <div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Menu">
+    <div class="menu__top">
+      <a class="nav__logo" style="display:inline-flex" href="#top" aria-label="Syed Mudaseer — home">
+        <span class="hanko" aria-hidden="true">修</span>
+        <span class="name">Syed Mudaseer</span>
+      </a>
+      <button class="nav__burger" type="button" aria-label="Close menu" aria-expanded="true"
+        aria-controls="menu"><span></span><span></span><span></span></button>
+    </div>
+    <nav class="menu__links" aria-label="Sections">
+      <a href="#work"><span class="kanji" aria-hidden="true">一</span>Work</a>
+      <a href="#hire"><span class="kanji" aria-hidden="true">二</span>Why me</a>
+      <a href="#process"><span class="kanji" aria-hidden="true">三</span>Process</a>
+      <a href="#about"><span class="kanji" aria-hidden="true">四</span>About</a>
+      <a href="#contact"><span class="kanji" aria-hidden="true">縁</span>Contact</a>
+    </nav>
+    <a class="btn menu__cta" href="#contact">Start a project →</a>
+  </div>
 
   <main id="top">
     <!-- ============================ HERO ============================ -->
@@ -2905,6 +3024,22 @@
       const onScroll = () => nav.classList.toggle("is-stuck", window.scrollY > 24);
       onScroll();
       window.addEventListener("scroll", onScroll, { passive: true });
+
+      // mobile hamburger sheet
+      const menu = document.getElementById("menu");
+      const openBtn = nav.querySelector(".nav__burger");
+      const setMenu = (open) => {
+        menu.classList.toggle("is-open", open);
+        document.body.classList.toggle("menu-open", open);
+        openBtn.setAttribute("aria-expanded", open);
+        (open ? menu.querySelector(".nav__burger") : openBtn).focus();
+      };
+      openBtn.addEventListener("click", () => setMenu(true));
+      menu.querySelector(".nav__burger").addEventListener("click", () => setMenu(false));
+      menu.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => setMenu(false)));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && menu.classList.contains("is-open")) setMenu(false);
+      });
 
       const io = new IntersectionObserver(
         (entries) => entries.forEach((e) => {
