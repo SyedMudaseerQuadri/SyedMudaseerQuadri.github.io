@@ -3179,7 +3179,7 @@
       onScroll();
       window.addEventListener("scroll", onScroll, { passive: true });
 
-      // let's-work-together form: send via FormSubmit, fall back to the mail app
+      // let's-work-together form: one click, sent in the background via FormSubmit (free)
       const form = document.getElementById("lwt");
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -3201,11 +3201,9 @@
           status.classList.add("is-ok");
           status.textContent = "Thanks! Your message is in. I’ll reply within 24 hours.";
         } catch (err) {
-          const body = `${data.get("message")}\n\n— ${data.get("name")} (${data.get("email")})`;
-          window.location.href = "mailto:syed.designuiux@gmail.com?subject=" +
-            encodeURIComponent("Let's work together") + "&body=" + encodeURIComponent(body);
+          // stay on the page: no redirect, just say what happened
           status.classList.add("is-err");
-          status.textContent = "Couldn’t send from here, so I’ve opened your email app with the message filled in.";
+          status.textContent = "Sorry, that didn’t go through. Please try again in a minute, or email syed.designuiux@gmail.com.";
         } finally {
           btn.disabled = false;
         }
