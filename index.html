@@ -1617,6 +1617,118 @@
       font-size: 16px;
     }
 
+    /* ---- let's work together form */
+    .lwt {
+      margin-top: 40px;
+      max-width: 760px;
+      display: grid;
+      gap: 18px;
+      padding: clamp(22px, 4vw, 40px);
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--seal);
+      border-radius: 4px;
+    }
+
+    .lwt__head h3 {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: clamp(24px, 3vw, 32px);
+    }
+
+    .lwt__head p {
+      margin-top: 6px;
+      color: var(--ink-2);
+      font-size: 15px;
+    }
+
+    .lwt__row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 600px) {
+      .lwt__row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .lwt__field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .lwt__field span {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .lwt__field input,
+    .lwt__field textarea {
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1.5px solid var(--line);
+      border-radius: 3px;
+      padding: 12px 14px;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+
+    .lwt__field textarea {
+      resize: vertical;
+      min-height: 130px;
+    }
+
+    .lwt__field input::placeholder,
+    .lwt__field textarea::placeholder {
+      color: var(--grey);
+    }
+
+    .lwt__field input:focus,
+    .lwt__field textarea:focus {
+      outline: none;
+      border-color: var(--ink);
+    }
+
+    .lwt__foot {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .lwt__foot .btn {
+      cursor: pointer;
+    }
+
+    .lwt__foot .btn[disabled] {
+      opacity: 0.6;
+      cursor: progress;
+    }
+
+    .lwt__status {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink-2);
+    }
+
+    .lwt__status.is-ok {
+      color: #2f6b3a;
+    }
+
+    .lwt__status.is-err {
+      color: var(--seal);
+    }
+
+    .lwt__trap {
+      position: absolute;
+      left: -9999px;
+    }
+
     .socials {
       display: flex;
       gap: 12px;
@@ -2552,6 +2664,36 @@
           a delivery date, backed by a 100% refund if the design doesn't
           work for you.
         </p>
+
+        <form class="lwt reveal" id="lwt" action="https://formsubmit.co/syed.designuiux@gmail.com" method="POST">
+          <div class="lwt__head">
+            <h3>Let’s work together</h3>
+            <p>Three quick fields. I read every message myself and reply within 24 hours.</p>
+          </div>
+          <input type="hidden" name="_subject" value="New project enquiry from your portfolio" />
+          <input type="hidden" name="_template" value="table" />
+          <input type="text" name="_honey" class="lwt__trap" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <div class="lwt__row">
+            <label class="lwt__field">
+              <span>Your name</span>
+              <input type="text" name="name" required autocomplete="name" placeholder="Your full name" />
+            </label>
+            <label class="lwt__field">
+              <span>Your email</span>
+              <input type="email" name="email" required autocomplete="email" placeholder="you@business.com" />
+            </label>
+          </div>
+          <label class="lwt__field">
+            <span>Your message</span>
+            <textarea name="message" required rows="5"
+              placeholder="Tell me about your business, what you need (a new website, a redesign, an app) and what you want customers to do more often. A rough budget and deadline help too."></textarea>
+          </label>
+          <div class="lwt__foot">
+            <button class="btn" type="submit">Send message →</button>
+            <p class="lwt__status" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+
         <div class="socials reveal">
           <a class="social" href="mailto:syed.designuiux@gmail.com">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3036,6 +3178,38 @@
       const onScroll = () => nav.classList.toggle("is-stuck", window.scrollY > 24);
       onScroll();
       window.addEventListener("scroll", onScroll, { passive: true });
+
+      // let's-work-together form: send via FormSubmit, fall back to the mail app
+      const form = document.getElementById("lwt");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector("button");
+        const status = form.querySelector(".lwt__status");
+        const data = new FormData(form);
+        btn.disabled = true;
+        status.className = "lwt__status";
+        status.textContent = "Sending…";
+        try {
+          const res = await fetch("https://formsubmit.co/ajax/syed.designuiux@gmail.com", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: data,
+          });
+          const json = await res.json();
+          if (!res.ok || String(json.success) !== "true") throw new Error(json.message || "failed");
+          form.reset();
+          status.classList.add("is-ok");
+          status.textContent = "Thanks! Your message is in. I’ll reply within 24 hours.";
+        } catch (err) {
+          const body = `${data.get("message")}\n\n— ${data.get("name")} (${data.get("email")})`;
+          window.location.href = "mailto:syed.designuiux@gmail.com?subject=" +
+            encodeURIComponent("Let's work together") + "&body=" + encodeURIComponent(body);
+          status.classList.add("is-err");
+          status.textContent = "Couldn’t send from here, so I’ve opened your email app with the message filled in.";
+        } finally {
+          btn.disabled = false;
+        }
+      });
 
       // mobile hamburger sheet
       const menu = document.getElementById("menu");
