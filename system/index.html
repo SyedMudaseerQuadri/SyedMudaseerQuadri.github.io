@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>THE SYSTEM — Syed's Life RPG</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ================= THE SYSTEM — modern 3D skin =================
+       Depth comes from three things only: a lit top edge (inset highlight),
+       a drop shadow below, and a hard "base" shadow on pressable things so
+       they physically sink when tapped. Colour tokens keep their old names
+       because the render code uses them inline. */
+    :root {
+      --ink: #07080D;
+      --panel: #10131C;
+      --panel2: #161A26;
+      --line: rgba(255, 255, 255, .06);
+      --line2: rgba(255, 255, 255, .11);
+      --washi: #EEF0F6;
+      --muted: #7F8699;
+      --soft: #C4C9D6;
+      --gold: #F2B84B;
+      --gold-deep: #9C6A12;
+      --vermilion: #FF5A4E;
+      --green: #6FD39A;
+      --blue: #6AA8FF;
+      --violet: #9B7BFF;
+      --chart-green: #5FA84E;
+      --glass: linear-gradient(155deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .015) 55%);
+      --lift: 0 1px 0 rgba(255, 255, 255, .08) inset, 0 -1px 0 rgba(0, 0, 0, .4) inset,
+              0 18px 40px -18px rgba(0, 0, 0, .9), 0 4px 10px -4px rgba(0, 0, 0, .6);
+      --r: 16px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      background: var(--ink);
+      color: var(--washi);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    /* slow-drifting light sources behind everything */
+    body::before, body::after {
+      content: "";
+      position: fixed;
+      z-index: -1;
+      width: 60vmax; height: 60vmax;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: .22;
+      pointer-events: none;
+      animation: drift 28s ease-in-out infinite alternate;
+    }
+    body::before { background: radial-gradient(circle, #F2B84B, transparent 65%); top: -25vmax; left: -15vmax; }
+    body::after  { background: radial-gradient(circle, #7B5CFF, transparent 65%); bottom: -30vmax; right: -20vmax; animation-delay: -14s; }
+    @keyframes drift { to { transform: translate(8vmax, 6vmax) scale(1.12); } }
+
+    #app { max-width: 620px; margin: 0 auto; min-height: 100vh; }
+
+    button { font-family: inherit; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s, color .2s, border-color .2s; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+
+    input, select, textarea {
+      background: rgba(0, 0, 0, .35);
+      border: 1px solid var(--line2);
+      border-radius: 12px;
+      color: var(--washi);
+      padding: 11px 13px;
+      font-size: 14px;
+      font-family: inherit;
+      width: 100%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .45) inset;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(242, 184, 75, .6);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .45) inset, 0 0 0 3px rgba(242, 184, 75, .14);
+    }
+    select option { background: #10131C; }
+
+    /* ---------- header: a floating glass slab ---------- */
+    .header {
+      margin: 12px 12px 0;
+      padding: 18px 18px 14px;
+      background: var(--glass), rgba(16, 19, 28, .72);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--line2);
+      border-radius: 22px;
+      box-shadow: var(--lift);
+    }
+
+    .seal {
+      width: 56px; height: 56px;
+      background: linear-gradient(145deg, #FF7A5C, #D6362B 60%, #8E1D15);
+      color: #FFF3E6;
+      font-family: 'Shippori Mincho', serif;
+      font-weight: 800;
+      font-size: 30px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 16px;
+      transform: perspective(300px) rotateX(10deg) rotate(-5deg);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .35) inset, 0 6px 0 #6E150F, 0 14px 28px -6px rgba(255, 90, 78, .55);
+      flex-shrink: 0;
+      text-shadow: 0 2px 0 rgba(0, 0, 0, .3);
+    }
+
+    .syslabel { font-size: 10px; letter-spacing: 3px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+    .pname { font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 700; letter-spacing: .2px; }
+
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--gold); }
+
+    /* ---------- progress: a recessed groove with a glowing bar ---------- */
+    .track {
+      height: 9px;
+      background: rgba(0, 0, 0, .5);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .8) inset, 0 1px 0 rgba(255, 255, 255, .04);
+    }
+    .fill {
+      height: 100%;
+      background: linear-gradient(90deg, #C98A1C, var(--gold), #FFE3A0);
+      border-radius: 99px;
+      box-shadow: 0 0 12px rgba(242, 184, 75, .55), 0 1px 0 rgba(255, 255, 255, .45) inset;
+      transition: width .6s cubic-bezier(.2, .8, .2, 1);
+    }
+
+    .worktags { display: flex; justify-content: center; gap: 8px; margin: 2px 0 10px; flex-wrap: wrap; }
+    .worktag {
+      display: flex; flex-direction: column; align-items: center; min-width: 78px;
+      padding: 6px 12px; border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02));
+      border: 1px solid rgba(242, 184, 75, .25);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 4px 10px rgba(0, 0, 0, .35);
+    }
+    .worktag small { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .worktag b { font-family: 'JetBrains Mono', monospace; font-size: 15px; color: var(--gold); }
+    .hstats { display: flex; gap: 7px; margin-top: 14px; font-size: 12.5px; color: var(--soft); flex-wrap: wrap; }
+    .hstats > span {
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset;
+    }
+
+    /* ---------- tabs: floating segmented pill ---------- */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      position: sticky;
+      top: 8px;
+      z-index: 5;
+      margin: 12px 12px 0;
+      padding: 5px;
+      background: rgba(12, 14, 21, .78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--line2);
+      border-radius: 16px;
+      box-shadow: var(--lift);
+    }
+    .tab {
+      flex: 1;
+      padding: 10px 2px;
+      background: transparent;
+      border: none;
+      border-radius: 11px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tab:hover { color: var(--soft); }
+    .tab.on {
+      color: #1A1204;
+      background: linear-gradient(180deg, #FFD37A, var(--gold));
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 3px 0 var(--gold-deep), 0 8px 18px -6px rgba(242, 184, 75, .6);
+      transform: translateY(-1px);
+    }
+
+    .wrap { padding: 16px 12px 90px; }
+    .panel { display: none; }
+    .panel.on { display: block; }
+    .sub { display: none; }
+    .sub.on { display: block; }
+
+    /* ---------- cards: glass tiles that lift on hover ---------- */
+    .card {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      background: var(--glass), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 13px 14px;
+      margin-bottom: 11px;
+      box-shadow: var(--lift);
+      transform: perspective(900px) translateZ(0);
+      transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s, border-color .25s;
+    }
+    @media (hover: hover) {
+      .card:hover {
+        transform: perspective(900px) translateY(-3px) rotateX(2deg);
+        border-color: var(--line2);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, .1) inset, 0 -1px 0 rgba(0, 0, 0, .4) inset,
+                    0 26px 50px -20px rgba(0, 0, 0, .95), 0 6px 14px -6px rgba(0, 0, 0, .7);
+      }
+    }
+    .col { flex-direction: column; align-items: stretch; }
+
+    /* ---------- checkbox: a physical key ---------- */
+    .check {
+      width: 28px; height: 28px;
+      border-radius: 9px;
+      border: 2px solid;
+      color: #0B0D12;
+      font-weight: 800;
+      flex-shrink: 0;
+      font-size: 14px;
+      background: rgba(0, 0, 0, .35);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 3px 0 rgba(0, 0, 0, .55);
+    }
+    .check:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, .55); }
+
+    .meta { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.55; }
+
+    .del {
+      background: none;
+      border: 1px solid transparent;
+      color: #5B6172;
+      font-size: 14px;
+      padding: 5px 7px;
+      border-radius: 8px;
+    }
+    .del:hover { color: var(--washi); background: rgba(255, 255, 255, .06); border-color: var(--line); }
+
+    /* ---------- buttons with a real base: they sink when pressed ---------- */
+    .gold {
+      background: linear-gradient(180deg, #FFD37A, var(--gold) 55%, #D99A2B);
+      color: #1A1204;
+      border: none;
+      border-radius: 12px;
+      padding: 11px 17px;
+      font-weight: 700;
+      font-size: 13.5px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .55) inset, 0 4px 0 var(--gold-deep), 0 10px 22px -8px rgba(242, 184, 75, .6);
+    }
+    .gold:hover { filter: brightness(1.06); }
+    .gold:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(255, 255, 255, .4) inset, 0 1px 0 var(--gold-deep); }
+
+    .ghost {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02));
+      border: 1px solid var(--line2);
+      color: var(--soft);
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 3px 0 rgba(0, 0, 0, .5);
+    }
+    .ghost:hover { color: var(--washi); border-color: rgba(255, 255, 255, .2); }
+    .ghost:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
+
+    .section {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 8px 0 11px;
+      text-shadow: 0 0 18px rgba(242, 184, 75, .35);
+    }
+    .section .meta { text-transform: none; letter-spacing: 0; text-shadow: none; display: inline; }
+
+    .hint { font-size: 12.5px; color: var(--muted); margin-bottom: 13px; line-height: 1.6; }
+
+    /* ---------- loot chest: a lit pedestal ---------- */
+    .chest {
+      margin-top: 18px;
+      border: 1px solid var(--line2);
+      border-radius: 20px;
+      padding: 22px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+      text-align: center;
+      background: radial-gradient(120% 80% at 50% 0%, rgba(242, 184, 75, .12), transparent 60%), var(--glass), var(--panel);
+      box-shadow: var(--lift);
+    }
+    .chest > div:first-child { filter: drop-shadow(0 12px 14px rgba(0, 0, 0, .7)); }
+
+    .row { display: flex; gap: 8px; }
+
+    .banner {
+      background: linear-gradient(155deg, rgba(111, 211, 154, .14), rgba(111, 211, 154, .04));
+      border: 1px solid rgba(111, 211, 154, .28);
+      border-radius: 14px;
+      padding: 13px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #CDEFD9;
+      box-shadow: var(--lift);
+    }
+
+    .badge { font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 3px 8px; border-radius: 7px; font-weight: 700; }
+
+    .chip {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 90, 78, .15);
+      color: #FF9B92;
+      display: inline-block;
+      margin-bottom: 5px;
+      border: 1px solid rgba(255, 90, 78, .25);
+    }
+
+    .pipe { display: flex; gap: 7px; }
+    .pipecell {
+      flex: 1;
+      background: rgba(0, 0, 0, .3);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px 4px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .45) inset;
+    }
+    .pipenum { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: var(--gold); text-shadow: 0 0 14px rgba(242, 184, 75, .4); }
+    .pipelbl { font-size: 10.5px; color: var(--muted); letter-spacing: .5px; margin: 3px 0 6px; }
+
+    .mini {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .05));
+      color: var(--washi);
+      border: 1px solid var(--line2);
+      border-radius: 7px;
+      width: 27px; height: 25px;
+      font-weight: 700;
+      font-size: 13px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, .5);
+    }
+    .mini:active { transform: translateY(2px); box-shadow: none; }
+
+    /* ---------- focus timer: a glowing dial ---------- */
+    .raid {
+      border: 1px solid rgba(242, 184, 75, .22);
+      background: radial-gradient(90% 70% at 50% 0%, rgba(242, 184, 75, .14), transparent 70%), var(--glass), var(--panel);
+      border-radius: 22px;
+      padding: 20px 16px;
+      margin-bottom: 13px;
+      text-align: center;
+      box-shadow: var(--lift);
+    }
+    .raidclock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 44px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 2px;
+      text-shadow: 0 0 24px rgba(242, 184, 75, .45), 0 3px 0 rgba(0, 0, 0, .6);
+    }
+
+    .deskhead { display: none; }
+
+    /* ---------- quest cards + subtasks ---------- */
+    .quest { position: relative; overflow: hidden; }
+    .quest::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--cat);
+      box-shadow: 0 0 14px var(--cat);
+    }
+    .quest.is-done { opacity: .55; }
+    .qrow { display: flex; align-items: center; gap: 11px; }
+    .qname { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+
+    .steps-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px !important;
+      font-weight: 700;
+      color: var(--soft) !important;
+      background: rgba(255, 255, 255, .05) !important;
+      border: 1px solid var(--line2) !important;
+      min-width: 38px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, .45);
+    }
+    .steps-btn.on { color: #1A1204 !important; background: var(--gold) !important; border-color: var(--gold) !important; }
+
+    .subbar {
+      height: 5px;
+      margin: 10px 0 0 39px;
+      background: rgba(0, 0, 0, .45);
+      border-radius: 99px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .8) inset;
+    }
+    .subfill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cat), #fff);
+      border-radius: 99px;
+      box-shadow: 0 0 10px var(--cat);
+      transition: width .45s cubic-bezier(.2, .8, .2, 1);
+    }
+
+    .subs { margin: 10px 0 0 39px; display: flex; flex-direction: column; gap: 6px; }
+    .subitem {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      background: rgba(0, 0, 0, .25);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .03) inset;
+    }
+    .subitem.is-done .subname { text-decoration: line-through; color: var(--muted); }
+    .subname { flex: 1; font-size: 13px; overflow-wrap: anywhere; }
+    .subcheck {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      border: 2px solid var(--cat);
+      background: transparent;
+      color: #0B0D12;
+      font-size: 11px;
+      font-weight: 800;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, .5);
+    }
+    .subcheck.on { background: var(--cat); }
+    .subcheck:active { transform: translateY(2px); box-shadow: none; }
+    .subadd { display: flex; gap: 7px; }
+    .subadd input { padding: 9px 11px; font-size: 13px; }
+    .subadd .gold { padding: 8px 13px; font-size: 12.5px; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.06); } }
+    @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+    .pulse { animation: pulse 1.4s infinite; }
+    .shake { animation: shake .3s infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, body::before, body::after { animation: none !important; transition: none !important; }
+      .card:hover { transform: none !important; }
+    }
+
+    /* ============ DESKTOP: 12-column grid, each panel a glass column ============ */
+    @media (min-width:1024px) {
+      #app { max-width: 1600px; }
+      .tabs { display: none; }
+      .wrap {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+        padding: 18px 22px 60px;
+        align-items: start;
+      }
+      .panel {
+        display: block !important;
+        padding: 14px;
+        background: rgba(255, 255, 255, .018);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 30px 60px -30px rgba(0, 0, 0, .9);
+      }
+      .sub { display: block !important; }
+      .sub-stats { margin-top: 6px; }
+      .p-quests { grid-column: span 3; }
+      .p-campaign { grid-column: span 3; }
+      .p-pomodoro { grid-column: span 3; }
+      .p-side { grid-column: span 3; display: flex; flex-direction: column; }
+      .deskhead {
+        display: block;
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 700;
+        font-size: 11.5px;
+        letter-spacing: 3px;
+        color: var(--soft);
+        padding: 4px 4px 12px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .header { margin: 16px 22px 0; padding: 20px 24px 16px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+  <input type="file" id="dbFile" accept=".json" style="display:none">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script>
+    // ================= CONFIG =================
+    const CATS = {
+      Editing: { color: "#E0703C", icon: "✂️" }, Design: { color: "#B48EDE", icon: "🎨" },
+      Comms: { color: "#5E8FC9", icon: "💬" }, Language: { color: "#9AA7E0", icon: "🌐" },
+      Body: { color: "#7FA36B", icon: "🤸" }, Guitar: { color: "#D4A947", icon: "🎸" },
+      Lab: { color: "#5BB8A8", icon: "🧪" }, Work: { color: "#C97B9E", icon: "💼" },
+    };
+    const DIFF = { Easy: { xp: 10, min: 10 }, Medium: { xp: 25, min: 20 }, Hard: { xp: 50, min: 35 } };
+    const BASE_CAP = 240;        // game: 4 hrs/day base
+    const PHONE_CAP = 120;       // phone: 2 hrs/day, fixed
+    const SMALL_BONUS = 0.01, BIG_BONUS = 0.25;
+    const RAID_MIN = 45;         // focus timer length (minutes)
+    const POMO_WORK = 45;        // pomodoro work cycle (minutes)
+    const POMO_BREAK = 15;       // pomodoro break (minutes)
+    const DAY_START_H = 8, DAY_START_M = 40;   // the System's day rolls over at 8:40 AM, not midnight
+    const HABIT_MIN = 10;        // every habit ticked = +10 min game time
+    const HABIT_XP = 10;         // …and a small XP trickle so the skill tree still moves
+    // A finished pomodoro cycle pays the DIFFICULTY RATE of the task it belongs to:
+    // A whole bucket SET is worth ONE difficulty rate (Hard 35m · Medium 20m · Easy 10m),
+    // split evenly across its buckets: one bucket of a 5-bucket Hard set pays 35/5 = 7m.
+    // Cycles run with no bucket set attached fall back to the Easy rate.
+    const POMO_NOSET = "Easy";
+    // Focus modes. Pomodoro is the classic cycle; Flowtime is open-ended: work
+    // until focus genuinely drops, then break for a fifth of what you worked.
+    // A Flowtime bucket is 60 minutes (a Pomodoro bucket stays 45).
+    const FOCUS_MODES = {
+      pomodoro: { label: "🍅 Pomodoro", work: POMO_WORK, brk: POMO_BREAK },
+      flowtime: { label: "🌊 Flowtime", work: null, brk: null },
+    };
+    const FLOW_BUCKET = 60;      // minutes of Flowtime that fill one bucket
+    function bucketLen(mode) { return mode === "flowtime" ? FLOW_BUCKET : POMO_WORK; }
+    const FLOW_MAX = 240;        // a flow session longer than this was forgotten, not worked
+    // Long unbroken focus is worth more per minute than the same minutes
+    // chopped up — that is the whole reason Flowtime exists, so the economy
+    // says it out loud. Applied by DURATION, not by mode. Pay only; bucket
+    // fill stays honest to real time.
+    function flowBonus(min) { return min >= 75 ? 1.2 : min >= 50 ? 1.1 : 1; }
+    // Pay for ONE full bucket of a set: the set's rate divided by the size the set
+    // was CREATED at (s.base) — not its size now. Overwork grows a set past its
+    // base instead of spilling into another set, and a bucket earned by working
+    // overtime is worth exactly what the planned ones were. So a set's total pay
+    // CAN exceed one difficulty rate: minutes stay the ledger.
+    function setBase(s) { return Math.max(1, s.base || s.total); }
+    function bucketMin(s) { return rateMin(s.diff) / setBase(s); }
+    function bucketXp(s) { return rateXp(s.diff) / setBase(s); }
+    const SET_MAX = 48;          // a set refuses to grow past this many buckets
+    function fmtM(n) { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }
+    // ---- energy map: auto-filled from Flowtime ----
+    // A Flowtime session ends when focus genuinely drops, so its length IS an
+    // energy reading. Each session is filed under the slot its midpoint fell in;
+    // the slot's auto score comes from the average session length there.
+    function slotOfHour(h) { return h < 12 ? "m" : h < 17 ? "a" : "e"; }
+    function flowScore(mins) {
+      if (!mins || !mins.length) return null;
+      const avg = mins.reduce((a, b) => a + b, 0) / mins.length;
+      return avg >= 75 ? 5 : avg >= 50 ? 4 : avg >= 30 ? 3 : avg >= 15 ? 2 : 1;
+    }
+    // Manual tap wins; otherwise the flow-derived score.
+    function energyOf(rec, sl) {
+      if (!rec) return null;
+      if (rec[sl] != null) return rec[sl];
+      return flowScore((rec.flow || {})[sl]);
+    }
+    function logFlowEnergy(startMs, worked) {
+      const mid = new Date(startMs + worked * 30000);
+      const k = dayKey(shiftNow(mid)), sl = slotOfHour(mid.getHours());
+      if (!S.energy) S.energy = {};
+      const rec = S.energy[k] || (S.energy[k] = {});
+      if (!rec.flow) rec.flow = {};
+      (rec.flow[sl] || (rec.flow[sl] = [])).push(Math.round(worked));
+      return { sl, score: flowScore(rec.flow[sl]), manual: rec[sl] };
+    }
+    // Buckets can now hold a fraction, so show 1.5/4 but never 1.0/4.
+    function fmtBk(n) { const r = Math.round((n || 0) * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }
+    function pomoWorkMin() { const m = FOCUS_MODES[S.pomo.mode] || FOCUS_MODES.pomodoro; return m.work || POMO_WORK; }
+    function pomoBreakMin(workedMin) {
+      if (S.pomo.mode === "flowtime") return Math.max(2, Math.round((workedMin || POMO_WORK) / 5));
+      return (FOCUS_MODES[S.pomo.mode] || FOCUS_MODES.pomodoro).brk || POMO_BREAK;
+    }
+    const CROSS_PCT = 0.6;       // dailies needed (with all habits) to earn the day's red cross
+    // Locks ride the reset clock rather than a rolling timer: a locked daily frees
+    // itself at the next 8:40 AM rollover, a locked weekly at the next Monday 8:40 AM.
+    // Nothing to count down — the release time is the reset you already know.
+    const RANKS = [
+      { min: 35, r: "S", t: "HERO" }, { min: 24, r: "A", t: "Elite" }, { min: 16, r: "B", t: "Craftsman" },
+      { min: 10, r: "C", t: "Fighter" }, { min: 5, r: "D", t: "Apprentice" }, { min: 1, r: "E", t: "Awakened" },
+    ];
+    const CLIENT_STATUS = ["Contacted", "Replied", "Call", "Deal", "Repeat", "Lost"];
+    const CLIENT_SRC = ["Upwork", "Instagram", "LinkedIn", "Fiverr", "Referral", "Other"];
+    // Weekly quests are YOURS to write — the System seeds nothing here and never
+    // injects its own. It only owns the boss list below.
+    // 17 bosses — 15 small (+1% cap each) · 2 BIG (+25% cap each)
+    const SEED_BOSSES = [
+      { id: "b1", big: false, title: "⚔️ The Portfolio Gate", desc: "3 spec edits done + portfolio page live.", xp: 300, done: false },
+      { id: "b2", big: false, title: "🎞 The Showreel", desc: "Cut and publish a 60-second showreel of your best work.", xp: 300, done: false },
+      { id: "b3", big: false, title: "🩸 First Blood", desc: "Land your FIRST paying editing client. Any amount.", xp: 500, target: 1, done: false },
+      { id: "b4", big: false, title: "🏹 Outreach Gauntlet", desc: "100 total outreach messages sent (your pipeline tracker counts them).", xp: 400, done: false },
+      { id: "b5", big: false, title: "🗡 The $250 Skirmish", desc: "Reach $250 total freelance earnings.", xp: 400, target: 250, done: false },
+      { id: "b6", big: false, title: "🧱 The $500 Wall", desc: "Reach $500 total earnings.", xp: 500, target: 500, done: false },
+      { id: "b7", big: false, title: "🎯 Niche Lord", desc: "Pick ONE niche and ship 5 edits in it. Specialists get paid.", xp: 400, done: false },
+      { id: "b8", big: false, title: "📜 Testimonial Hunter", desc: "Collect 3 written client testimonials for your portfolio.", xp: 400, done: false },
+      { id: "b9", big: false, title: "🔁 The Repeat Client", desc: "Same client hires you a second time. Proof of quality.", xp: 500, done: false },
+      { id: "b10", big: false, title: "⚡ Rate Ascension", desc: "Charge $250+ for a SINGLE project. You are not cheap anymore.", xp: 600, done: false },
+      { id: "b11", big: false, title: "😈 Retainer Demon", desc: "Land a monthly retainer client (recurring income secured).", xp: 600, done: false },
+      { id: "b12", big: false, title: "🏯 The $2,500 Warlord", desc: "Reach $2,500 total. Halfway to the crown.", xp: 700, target: 2500, done: false },
+      { id: "b13", big: false, title: "🎤 The Silver Tongue", desc: "Lead a full client call (or mock call) in confident English — 20+ min, no script.", xp: 500, done: false },
+      { id: "b14", big: false, title: "🌐 Polyglot Initiate", desc: "30 consecutive days of language practice logged. New language, new markets.", xp: 500, done: false },
+      { id: "b15", big: false, title: "📖 Lexicon Keeper", desc: "200 new words learned AND used (the 15/week pace makes this ~3 months).", xp: 600, done: false },
+      { id: "B1", big: true, title: "💀 THE $1,000 TITAN", desc: "Reach $1,000 total earnings. The wall between hobbyist and professional.", xp: 1500, target: 1000, done: false },
+      { id: "B2", big: true, title: "👑 FINAL BOSS: THE $5,000 CROWN", desc: "$5,000 total in the year. Zero → Hero complete.", xp: 2500, target: 5000, done: false },
+    ];
+    const LOOT = [
+      { w: 28, label: "+50 XP surge", apply: s => { s.xp += 50; } },
+      { w: 24, label: "+30 min game time", apply: s => { s.bank += 30; } },
+      { w: 15, label: "+15 min game time", apply: s => { s.bank += 15; } },
+      { w: 12, label: "🛡 Streak Shield (protects 1 missed day)", apply: s => { s.shields += 1; } },
+      { w: 10, label: "+100 XP CRIT!", apply: s => { s.xp += 100; } },
+      { w: 6, label: "💰 JACKPOT: +60 min game time", apply: s => { s.bank += 60; } },
+      { w: 5, label: "Dust... but +5 min pity reward", apply: s => { s.bank += 5; } },
+    ];
+    // Logical time: everything before 8:40 AM still belongs to the previous day.
+    function shiftNow(d) { return new Date((d ? d.getTime() : Date.now()) - (DAY_START_H * 3600000 + DAY_START_M * 60000)); }
+    function sysDay() { return shiftNow().toDateString(); }
+    const DEFAULT = {
+      day: sysDay(), weekStart: null, xp: 0,
+      catXp: Object.fromEntries(Object.keys(CATS).map(c => [c, 0])),
+      dailies: [
+        { id: "d1", name: "1 focused editing session (45+ min)", cat: "Editing", diff: "Hard", timers: 0, done: false },
+        { id: "d2", name: "Calisthenics workout", cat: "Body", diff: "Medium", timers: 0, done: false },
+        { id: "d3", name: "20 min guitar", cat: "Guitar", diff: "Easy", timers: 0, done: false },
+        { id: "d4", name: "Send 3 outreach messages", cat: "Comms", diff: "Medium", timers: 0, done: false },
+        { id: "d5", name: "15 min language practice", cat: "Language", diff: "Easy", timers: 0, done: false },
+      ],
+      habits: [], marks: {},
+      weekly: [], bosses: SEED_BOSSES, history: [],
+      pipe: { contacted: 0, replied: 0, call: 0, deal: 0 }, clients: [], journal: [],
+      earnings: 0, bank: 30, usedToday: 0, phoneToday: 0,
+      streak: 0, shields: 0, chestOpened: false,
+      raidStart: null, raidToday: false, anyToday: false, fatigued: false,
+      pomo: { phase: "work", mode: "pomodoro", endsAt: null, paused: null, flowStart: null, breakMin: null, note: "", sets: [], active: null, cycles: 0 },
+      energy: {}, tomorrow: [],
+    };
+
+    // ================= STATE =================
+    let subOpen = {};
+    let S = null, tab = "quests", rolling = false, lootMsg = null, raidTimer = null, raidMsg = "", pomoTimer = null, pomoMsg = "", dbMsg = "", calMonth = 0, lockMsg = "", wipeArmed = false;
+    const KEY = "lifesys-local-v2";
+
+    // ================= LOCAL DATABASE (IndexedDB) =================
+    // Stores: kv (current state snapshot) · transactions (every XP/min/$ event)
+    //         tasks (every task/bucket-set you add) · pomodoro (completed cycles + notes)
+    let db = null;
+    function openDB() {
+      return new Promise(res => {
+        if (!window.indexedDB) return res(null);
+        const rq = indexedDB.open("lifesys-db", 2);
+        rq.onupgradeneeded = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("kv")) d.createObjectStore("kv");
+          if (!d.objectStoreNames.contains("transactions")) d.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+          if (!d.objectStoreNames.contains("tasks")) d.createObjectStore("tasks", { keyPath: "id", autoIncrement: true });
+          if (!d.objectStoreNames.contains("pomodoro")) d.createObjectStore("pomodoro", { keyPath: "id", autoIncrement: true });
+          if (!d.objectStoreNames.contains("journal")) d.createObjectStore("journal", { keyPath: "id", autoIncrement: true });
+        };
+        rq.onsuccess = e => { db = e.target.result; res(db); };
+        rq.onerror = () => res(null);
+      });
+    }
+    function dbPut(store, val, key) {
+      if (!db) return;
+      if (key === undefined && val && !val.cid) val.cid = newCid();   // log rows: id for cloud dedupe
+      try {
+        const os = db.transaction(store, "readwrite").objectStore(store);
+        key !== undefined ? os.put(val, key) : os.put(val);
+      } catch (e) { }
+      if (key === undefined) schedulePush();
+    }
+    function dbPutMany(store, rows) {
+      return new Promise(res => {
+        if (!db || !rows.length) return res();
+        try {
+          const tx = db.transaction(store, "readwrite"), os = tx.objectStore(store);
+          rows.forEach(r => { try { os.put(r); } catch (e) { } });
+          tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+        } catch (e) { res(); }
+      });
+    }
+    function dbGetAll(store) {
+      return new Promise(res => {
+        if (!db) return res([]);
+        try {
+          const rq = db.transaction(store).objectStore(store).getAll();
+          rq.onsuccess = () => res(rq.result || []);
+          rq.onerror = () => res([]);
+        } catch (e) { res([]); }
+      });
+    }
+    function logTx(type, label, detail) {
+      dbPut("transactions", Object.assign({ ts: new Date().toISOString(), type, label }, detail || {}));
+      refreshDbViews();
+    }
+    async function refreshDbViews() {
+      const led = document.getElementById("ledger");
+      const ins = document.getElementById("insights");
+      if (!led && !ins) return;
+      const [tx, pomo] = await Promise.all([dbGetAll("transactions"), dbGetAll("pomodoro")]);
+      if (led) {
+        const last = tx.slice(-12).reverse();
+        led.innerHTML = last.length
+          ? last.map(t => `<div class="meta">${new Date(t.ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${esc(t.label)}${t.xp ? ` · <b style="color:${t.xp > 0 ? "var(--gold)" : "var(--vermilion)"}">${t.xp > 0 ? "+" : ""}${t.xp} XP</b>` : ""}${t.min ? ` · ${t.min > 0 ? "+" : ""}${t.min}m` : ""}${t.amount ? ` · <b style="color:var(--green)">$${t.amount}</b>` : ""}</div>`).join("")
+          : `<div class="meta">No transactions logged yet — go do something.</div>`;
+      }
+      if (ins) ins.innerHTML = buildInsights(tx, pomo);
+    }
+    function dayKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    // Minutes of focus work per System day, rebuilt from the pomodoro store on
+    // boot and topped up live as sessions finish. Old records predate `worked`
+    // and were always a full 45-min cycle.
+    let workByDay = null;
+    async function loadWorkTotals() {
+      const rows = await dbGetAll("pomodoro"), m = {};
+      rows.forEach(r => {
+        if (!r || !r.ts) return;
+        const k = dayKey(shiftNow(new Date(r.ts)));
+        m[k] = (m[k] || 0) + (r.worked != null ? r.worked : POMO_WORK);
+      });
+      workByDay = m; render();
+    }
+    function workTotals() {
+      const now = shiftNow(), tk = dayKey(now), mk = tk.slice(0, 7);
+      const mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+      const wk = dayKey(mon);
+      let d = 0, w = 0, mo = 0;
+      Object.entries(workByDay || {}).forEach(([k, v]) => {
+        if (k > tk) return;
+        if (k === tk) d += v;
+        if (k >= wk) w += v;
+        if (k.slice(0, 7) === mk) mo += v;
+      });
+      return { d, w, mo };
+    }
+    function fmtHM(min) { min = Math.round(min); const h = Math.floor(min / 60), m = min % 60; return h ? h + "h" + (m ? " " + m + "m" : "") : m + "m"; }
+    function buildInsights(tx, pomo) {
+      const today = shiftNow(); today.setHours(0, 0, 0, 0);
+      const xpBy = {}, earnBy = {}, spendBy = {}, cycBy = {};
+      tx.forEach(t => {
+        const k = dayKey(shiftNow(new Date(t.ts)));
+        if (t.xp > 0) xpBy[k] = (xpBy[k] || 0) + t.xp;
+        if (t.min > 0) earnBy[k] = (earnBy[k] || 0) + t.min;
+        if (t.min < 0) spendBy[k] = (spendBy[k] || 0) - t.min;
+      });
+      pomo.forEach(p => { const k = dayKey(shiftNow(new Date(p.ts))); cycBy[k] = (cycBy[k] || 0) + 1; });
+
+      // 12-week activity calendar — sequential: one hue (gold), faint→full
+      const start = new Date(mondayOf(new Date(today.getTime() - 77 * 86400000)));
+      let maxScore = 1, d = new Date(start);
+      while (d <= today) { const k = dayKey(d); maxScore = Math.max(maxScore, (xpBy[k] || 0) + (cycBy[k] || 0) * 10); d.setDate(d.getDate() + 1); }
+      let cells = "", idx = 0;
+      d = new Date(start);
+      while (d <= today) {
+        const k = dayKey(d), xp = xpBy[k] || 0, cy = cycBy[k] || 0, score = xp + cy * 10;
+        const a = score ? (0.25 + 0.75 * Math.min(1, score / maxScore)) : 0;
+        cells += `<div title="${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${xp} XP · ${cy} 🍅" style="grid-column:${Math.floor(idx / 7) + 1};grid-row:${idx % 7 + 1};width:11px;height:11px;border-radius:2px;background:${score ? `rgba(212,169,71,${a.toFixed(2)})` : "#1C202A"}"></div>`;
+        d.setDate(d.getDate() + 1); idx++;
+      }
+
+      // last-14-day single-series bars (zero-baseline, per-mark tooltip)
+      const days = []; for (let i = 13; i >= 0; i--) { const x = new Date(today); x.setDate(x.getDate() - i); days.push(x); }
+      const bars = (map, color, unit) => {
+        const vals = days.map(x => map[dayKey(x)] || 0);
+        const best = Math.max(0, ...vals), max = Math.max(1, best), tot = vals.reduce((a2, b) => a2 + b, 0);
+        const html = `<div style="display:flex;align-items:flex-end;gap:3px;height:54px">${days.map((x, i) => `<div title="${x.toLocaleDateString([], { month: "short", day: "numeric" })}: ${vals[i]} ${unit}" style="flex:1;min-width:4px;height:${vals[i] ? Math.max(4, Math.round(vals[i] / max * 54)) : 2}px;background:${vals[i] ? color : "#1C202A"};border-radius:2px 2px 0 0"></div>`).join("")}</div>`;
+        return { html, tot, best, today: vals[13] };
+      };
+      const xpB = bars(xpBy, "var(--gold)", "XP"), cyB = bars(cycBy, "var(--vermilion)", "cycles");
+
+      // earned vs spent minutes, last 7 days — two entities, direct-labeled
+      let e7 = 0, s7 = 0;
+      for (let i = 0; i < 7; i++) { const x = new Date(today); x.setDate(x.getDate() - i); const k = dayKey(x); e7 += earnBy[k] || 0; s7 += spendBy[k] || 0; }
+      const mMax = Math.max(1, e7, s7), net = e7 - s7;
+
+      const range = days[0].toLocaleDateString([], { month: "short", day: "numeric" }) + " – " + days[13].toLocaleDateString([], { month: "short", day: "numeric" });
+      return `<div class="card col" style="gap:8px">
+      <div style="font-weight:600">🗓 Activity <span class="meta">· last 12 weeks</span></div>
+      <div style="display:grid;grid-auto-rows:11px;gap:3px;justify-content:center">${cells}</div>
+      <div class="meta">Deeper gold = more XP + pomodoro cycles that day. Hover a square for the numbers.</div>
+    </div>
+    <div class="card col" style="gap:6px">
+      <div style="font-weight:600">⚡ XP per day <span class="meta">· ${range}</span></div>
+      ${xpB.html}
+      <div class="meta">total ${xpB.tot} XP · best day ${xpB.best} · today ${xpB.today}</div>
+    </div>
+    <div class="card col" style="gap:6px">
+      <div style="font-weight:600">🍅 Cycles per day <span class="meta">· ${range}</span></div>
+      ${cyB.html}
+      <div class="meta">total ${cyB.tot} cycles · best day ${cyB.best} · today ${cyB.today}</div>
+    </div>
+    <div class="card col" style="gap:6px">
+      <div style="font-weight:600">⏳ Minutes <span class="meta">· last 7 days</span></div>
+      <div class="meta">Earned <b style="color:var(--washi)">${e7}m</b></div>
+      <div class="track"><div class="fill" style="width:${Math.round(e7 / mMax * 100)}%;background:var(--chart-green)"></div></div>
+      <div class="meta" style="margin-top:4px">Spent <b style="color:var(--washi)">${s7}m</b> (game + phone)</div>
+      <div class="track"><div class="fill" style="width:${Math.round(s7 / mMax * 100)}%;background:var(--blue)"></div></div>
+      <div class="meta">${net >= 0 ? `Surplus <b style="color:var(--chart-green)">+${net}m</b> — the bank grows.` : `Deficit <b style="color:var(--vermilion)">${net}m</b> — spending more than you earn.`}</div>
+    </div>`;
+    }
+    // Consistency calendar — a day earns its red ✗ when every habit is ticked
+    // AND at least CROSS_PCT of that day's dailies are done. Reads S.marks.
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+      "August", "September", "October", "November", "December"];
+    function buildCalendar() {
+      const now = shiftNow();
+      const view = new Date(now.getFullYear(), now.getMonth() + calMonth, 1);
+      const y = view.getFullYear(), m = view.getMonth();
+      const lead = (new Date(y, m, 1).getDay() + 6) % 7;      // Monday-first grid
+      const total = new Date(y, m + 1, 0).getDate();
+      const todayK = dayKey(now);
+      let cells = "", crosses = 0, logged = 0, perfect = 0;
+      for (let i = 0; i < lead; i++) cells += `<div></div>`;
+      for (let d = 1; d <= total; d++) {
+        const k = dayKey(new Date(y, m, d));
+        const mk = S.marks[k], isToday = k === todayK;
+        const a = crossAlpha(mk), pct = Math.round(dayScore(mk) * 100);
+        const future = new Date(y, m, d) > now;
+        const touched = !!mk && (mk.d || mk.h);
+        if (a > 0) { crosses++; if (pct >= 100) perfect++; }
+        if (touched) logged++;
+        const tip = mk
+          ? `${k} · habits ${mk.h}/${mk.ht} · dailies ${mk.d}/${mk.dt} (${pct}%)${a > 0 ? (pct >= 100 ? " · ✗ PERFECT DAY" : " · ✗ earned") : ""}`
+          : `${k} · nothing logged`;
+        const bg = a > 0 ? `rgba(201,58,46,${(a * 0.18).toFixed(3)})`
+          : touched ? "#181C24" : future ? "transparent" : "#14171D";
+        cells += `<div title="${esc(tip)}" style="position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:11px;font-family:'JetBrains Mono',monospace;background:${bg};border:1px solid ${isToday ? "var(--gold)" : "transparent"};color:var(--muted)">${a > 0
+          ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;color:rgba(201,58,46,${a.toFixed(3)})">✗</span><span style="position:absolute;top:2px;left:4px;font-size:9px;opacity:.45">${d}</span>`
+          : touched
+            ? `<span style="position:absolute;width:4px;height:4px;border-radius:50%;background:#3E444F"></span><span style="position:absolute;top:2px;left:4px;font-size:9px;opacity:.35">${d}</span>`
+            : d}</div>`;
+      }
+      const dows = ["M", "T", "W", "T", "F", "S", "S"]
+        .map(x => `<div style="text-align:center;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace">${x}</div>`).join("");
+      return `<div class="card col" style="gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="mini" onclick="act.calNav(-1)">‹</button>
+        <div style="flex:1;text-align:center;font-weight:600">${MONTHS[m]} ${y}</div>
+        <button class="mini" ${calMonth >= 0 ? "disabled" : ""} onclick="act.calNav(1)">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${dows}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div>
+      <div class="meta"><b style="color:var(--vermilion)">✗ ${crosses}</b> marked this month · <b style="color:var(--vermilion)">${perfect}</b> perfect · ${logged} days logged. The ✗ appears once <b>every habit</b> is ticked and <b>${Math.round(CROSS_PCT * 100)}%</b> of your dailies are done, then deepens from faint to full red as you climb to 100%. A grey dot means you worked but stopped short of the bar. Hover any day for its numbers.</div>
+    </div>`;
+    }
+    function toCSV(rows) {
+      const cols = [...rows.reduce((s, r) => { Object.keys(r).forEach(k => s.add(k)); return s; }, new Set())];
+      const cell = v => { if (v == null) return ""; const s2 = typeof v === "object" ? JSON.stringify(v) : String(v); return /[",\r\n]/.test(s2) ? '"' + s2.replace(/"/g, '""') + '"' : s2; };
+      return cols.join(",") + "\r\n" + rows.map(r => cols.map(c => cell(r[c])).join(",")).join("\r\n");
+    }
+    function downloadFile(name, content, type) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([content], { type }));
+      a.download = name; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function mondayOf(d) {
+      const x = new Date(d); x.setHours(0, 0, 0, 0);
+      x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+      return x.toDateString();
+    }
+    // Stamp today's completion record into S.marks — this is what the consistency
+    // calendar reads. Recomputed on every habit/daily change so the current day is
+    // always live; past days simply keep whatever they were left at.
+    // Only raw counts are stored — the cross is DERIVED, so changing CROSS_PCT
+    // re-scores your whole history instead of freezing it at the old threshold.
+    // Work you finished and then deleted still counts for the day. Deleting a
+    // COMPLETED quest banks a credit (gd = dailies, gh = habits) on that day's
+    // record; the credit adds to both sides of the fraction, so removing finished
+    // work can never cost you the day's cross.
+    function bankCredit(kind) {
+      const k = dayKey(shiftNow());
+      const m = S.marks[k] || (S.marks[k] = { h: 0, ht: 0, d: 0, dt: 0 });
+      if (kind === "daily") m.gd = (m.gd || 0) + 1; else m.gh = (m.gh || 0) + 1;
+    }
+    function stampToday() {
+      const k = dayKey(shiftNow()), prev = S.marks[k] || {};
+      const gd = prev.gd || 0, gh = prev.gh || 0;
+      // Scored against the board as it stands, plus credit banked from work that
+      // was completed and then deleted. No ratchet: finishing what is in front of
+      // you always counts, however much you trimmed the list getting there.
+      const hd = S.habits.filter(h => h.done).length + gh;
+      const dd = S.dailies.filter(d => d.done).length + gd;
+      const ht = S.habits.length + gh;
+      const dt = S.dailies.length + gd;
+      S.marks[k] = { h: hd, ht, d: dd, dt, gd, gh };
+    }
+    // The day's mark is graded, not pass/fail: every habit must be ticked, and then
+    // the ✗ fades in from CROSS_PCT of your dailies up to a full-blooded 100%.
+    function habitsClear(mk) { return !!mk && mk.h === mk.ht; }
+    function dayScore(mk) { return (!mk || !mk.dt) ? 0 : mk.d / mk.dt; }
+    function crossAlpha(mk) {
+      if (!habitsClear(mk)) return 0;
+      const sc = dayScore(mk);
+      if (sc < CROSS_PCT) return 0;
+      const span = Math.max(0.0001, 1 - CROSS_PCT);
+      return 0.35 + 0.65 * Math.min(1, (sc - CROSS_PCT) / span);
+    }
+    function isCross(mk) { return crossAlpha(mk) > 0; }
+    function load() {
+      try {
+        const raw = localStorage.getItem(KEY);
+        S = raw ? Object.assign({}, structuredClone(DEFAULT), JSON.parse(raw)) : structuredClone(DEFAULT);
+      } catch (e) { S = structuredClone(DEFAULT); }
+      lastSaved = stateBody();
+      if (!S.pipe) S.pipe = structuredClone(DEFAULT.pipe);
+      if (!S.history) S.history = [];
+      if (!S.pomo) S.pomo = structuredClone(DEFAULT.pomo);
+      if (!S.clients) S.clients = [];
+      if (!S.journal) S.journal = [];
+      if (!S.habits) S.habits = [];
+      if (!S.marks) S.marks = {};
+      if (!S.energy) S.energy = {};
+      if (!FOCUS_MODES[S.pomo.mode]) S.pomo.mode = "pomodoro";   // 90/20 was retired
+      if (!Array.isArray(S.tomorrow)) S.tomorrow = [];
+      // Locks used to be a rolling 24h timestamp; re-express any live one as the
+      // reset boundary it now rides, then drop the old field.
+      S.dailies.forEach(d => { if (d.lockUntil) { if (Date.now() < d.lockUntil && !d.lockedDay) d.lockedDay = sysDay(); delete d.lockUntil; } });
+      S.weekly.forEach(w => { if (w.lockUntil) { if (Date.now() < w.lockUntil && !w.lockedWeek) w.lockedWeek = mondayOf(shiftNow()); delete w.lockUntil; } });
+      // Nested-field migration: bucket sets predate per-cycle difficulty rates.
+      // Inherit the linked daily's difficulty where we can, else assume Medium.
+      if (!Array.isArray(S.pomo.sets)) S.pomo.sets = [];
+      S.pomo.sets.forEach(s => {
+        const d = S.dailies.find(x => x.id === s.taskId) || S.dailies.find(x => x.name === s.name);
+        if (!DIFF[s.diff]) s.diff = d ? d.diff : "Medium";
+        if (!CATS[s.cat]) s.cat = d ? d.cat : "Editing";   // cycles now pay XP into a category
+        // Sets predate overflow-growth: whatever size an old set is now IS its base,
+        // so its per-bucket pay is unchanged by this migration.
+        if (!s.base) s.base = s.total;
+      });
+      if (!S.catXp.Language) S.catXp.Language = 0;
+      S.dailies.forEach(d => { if (d.timers == null) d.timers = 0; });
+      delete S.challenges; delete S.syncNudge;   // retired features
+      if (S.fatigued && !S.everActive) S.fatigued = false;   // heal saves wrongly fatigued before first use
+      // --- daily reset (at 8:40 AM, not midnight) ---
+      const today = sysDay();
+      if (S.day !== today) {
+        const gap = Math.round((new Date(today) - new Date(S.day)) / 86400000);
+        const missed = S.chestOpened ? gap - 1 : gap;
+        if (missed > 0) { if (S.shields > 0) S.shields--; else S.streak = 0; }
+        S.fatigued = S.everActive === true && !S.anyToday;   // fatigue only after you've actually used the System
+        S.day = today; S.dailies.forEach(d => { d.done = false; delete d.earned; delete d.earnedMin; (d.subs || []).forEach(x => { x.done = false; }); });
+        S.habits.forEach(h => { h.done = false; delete h.earnedMin; });
+        S.tomorrow.forEach(q => pushDaily(q));   // quests planned last night join today's list
+        S.tomorrow = [];
+        S.usedToday = 0; S.phoneToday = 0; S.chestOpened = false; S.raidToday = false; S.anyToday = false;
+      }
+      // --- weekly reset (Monday 8:40 AM) ---
+      const thisMonday = mondayOf(shiftNow());
+      if (!S.weekStart) S.weekStart = thisMonday;
+      else if (S.weekStart !== thisMonday) {
+        S.history.unshift({
+          week: S.weekStart,
+          done: S.weekly.filter(w => w.done).length, total: S.weekly.length
+        });
+        S.history = S.history.slice(0, 8);
+        S.weekly.forEach(w => { w.done = false; delete w.earned; delete w.earnedMin; });
+        S.weekStart = thisMonday;
+      }
+      if (S.raidStart && Date.now() - S.raidStart >= RAID_MIN * 60000) { finishRaidCore(); }
+      if (S.pomo.endsAt && Date.now() >= S.pomo.endsAt) { finishPomoCore(false); }
+      stampToday();
+      save();
+    }
+    // Add a daily quest. Timers create a matching bucket set: t buckets = t work
+    // cycles, carrying the task's difficulty so each cycle pays the right rate.
+    function pushDaily(q) {
+      const id = Date.now() + "" + Math.floor(Math.random() * 1000);
+      const task = { id: "d" + id, name: q.name, cat: q.cat, diff: q.diff, timers: q.timers || 0, done: false };
+      S.dailies.push(task);
+      if (task.timers > 0) {
+        const bid = "ps" + id;
+        S.pomo.sets.push({ id: bid, name: task.name, total: task.timers, base: task.timers, done: 0, diff: task.diff, cat: task.cat, taskId: task.id });
+        if (!S.pomo.active) S.pomo.active = bid;
+      }
+      dbPut("tasks", { ts: new Date().toISOString(), kind: "daily", name: task.name, cat: task.cat, diff: task.diff, timers: task.timers });
+      logTx("task", "Task added: " + task.name + (task.timers ? " (" + task.timers + " timers)" : ""));
+    }
+    // _rev stamps the save with when its content last changed; cloud sync uses
+    // it to tell which device holds the newer data. Re-saving unchanged state
+    // keeps the old stamp.
+    let lastSaved = null;
+    function stateBody() { return JSON.stringify(Object.assign({}, S, { _rev: 0 })); }
+    function save() {
+      const body = stateBody();
+      if (body !== lastSaved) { S._rev = Date.now(); lastSaved = body; schedulePush(); }
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
+      dbPut("kv", JSON.parse(JSON.stringify(S)), "state");
+    }
+
+    // ================= HELPERS =================
+    function levelInfo(xp) { let level = 1, need = 100, rem = xp; while (rem >= need) { rem -= need; level++; need = Math.round(need * 1.18); } return { level, cur: rem, need }; }
+    function catLevel(xp) { return Math.floor(Math.sqrt(xp / 40)) + 1; }
+    function rankOf(l) { return RANKS.find(r => l >= r.min) || RANKS[RANKS.length - 1]; }
+    function gameCap() {
+      const small = S.bosses.filter(b => b.done && !b.big).length;
+      const big = S.bosses.filter(b => b.done && b.big).length;
+      return Math.round(BASE_CAP * (1 + small * SMALL_BONUS + big * BIG_BONUS));
+    }
+    function streakMult() { return S.streak >= 30 ? 1.5 : S.streak >= 14 ? 1.2 : S.streak >= 7 ? 1.1 : 1; }
+    function rewardFactor() { return S.fatigued ? 0.5 : 1; }
+    function rollLoot() { const t = LOOT.reduce((a, l) => a + l.w, 0); let r = Math.random() * t; for (const l of LOOT) { if ((r -= l.w) <= 0) return l; } return LOOT[0]; }
+    function esc(x) { return String(x).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function fmtH(min) { return (min / 60).toFixed(min % 60 ? 1 : 0) + "h"; }
+    function fmtClock(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); }
+    function clearFatigueByEditing() { if (S.fatigued) { S.fatigued = false; raidMsg = "😮‍💨 Fatigue cleared — full rewards restored."; } }
+    // One "rate" = the task's difficulty payout, in XP and in game minutes.
+    function rateXp(diff) { return Math.round(DIFF[diff].xp * streakMult()); }
+    function rateMin(diff) { return Math.round(DIFF[diff].min * rewardFactor()); }
+    // The checkbox always pays exactly one rate: the whole reward for an untimered
+    // quest, and the finisher bonus on top of the per-cycle payouts for a timered one.
+    function dailyCheckMin(d) { return rateMin(d.diff); }
+    // What a daily is WORTH in total: its buckets together pay one rate, and the
+    // checkbox pays one more. Hard×5 = 5 × 7m + 35m finisher = 70m (was 210m).
+    function dailyRates(d) { return (d.timers || 0) > 0 ? 2 : 1; }
+    function dailyWorth(d) { return rateMin(d.diff) * dailyRates(d); }
+    function dailyWorthXp(d) { return rateXp(d.diff) * dailyRates(d); }
+    // A locked quest is frozen against deletion (and against being moved out of
+    // the list) until its next reset. Ticking it off is always allowed.
+    // A daily stores the system-day it was locked on and frees itself at the next
+    // 8:40 AM rollover; a weekly stores its week and frees itself on Monday at 8:40 AM.
+    function isLocked(q) {
+      if (!q) return false;
+      if (q.lockedDay) return q.lockedDay === sysDay();
+      if (q.lockedWeek) return q.lockedWeek === mondayOf(shiftNow());
+      return false;
+    }
+    function lockNote(q) { return q.lockedWeek ? "until Monday 8:40 AM" : "until the 8:40 AM reset"; }
+    function refuse(q, name) {
+      lockMsg = "🔒 \"" + name + "\" is locked " + lockNote(q) + ". You committed to it — it isn't going anywhere.";
+      render();
+    }
+
+    function finishRaidCore() {
+      S.raidStart = null; S.raidToday = true; S.anyToday = true; S.everActive = true;
+      const mult = streakMult();
+      const d = S.dailies.find(x => x.cat === "Editing" && !x.done);
+      if (d) {
+        const xp = rateXp(d.diff), min = dailyCheckMin(d);
+        d.done = true; d.earned = xp; d.earnedMin = min;
+        S.xp += xp; S.bank += min; S.catXp.Editing = (S.catXp.Editing || 0) + xp;
+        if (S.dailies.every(x => x.done)) S.streak++;
+        raidMsg = "⚔️ RAID CLEARED — editing daily auto-completed. +" + xp + " XP, +" + min + "m game time.";
+        logTx("raid", "Raid cleared: " + d.name, { xp, min, cat: "Editing" });
+      } else {
+        const xp = Math.round(50 * mult), min = Math.round(25 * rewardFactor());
+        S.xp += xp; S.bank += min; S.catXp.Editing = (S.catXp.Editing || 0) + xp;
+        raidMsg = "⚔️ RAID CLEARED — +" + xp + " XP, +" + min + "m game time. Game time unlocked.";
+        logTx("raid", "Raid cleared", { xp, min, cat: "Editing" });
+      }
+      clearFatigueByEditing();
+      stampToday();
+    }
+
+    function finishPomoCore(autoBreak, workedMin) {
+      const P = S.pomo;
+      const flowStartedAt = P.flowStart;
+      P.endsAt = null; P.paused = null; P.flowStart = null;
+      if (P.phase === "work") {
+        // MINUTES ARE THE LEDGER. Everything below is derived from real time
+        // worked, so nothing rounds away and one long session is always worth
+        // exactly the same as the identical minutes split into chunks.
+        let worked = Math.max(1, Math.round(workedMin != null ? workedMin : pomoWorkMin()));
+        let capped = 0;
+        if (worked > FLOW_MAX) { capped = worked; worked = FLOW_MAX; }
+
+        const fill = worked / bucketLen(P.mode);         // exact bucket fill
+        const mult = flowBonus(worked);                  // pay bonus only
+        const cyc = fill * mult;
+
+        P.cycles = (P.cycles || 0) + Math.max(1, Math.floor(fill));
+        S.anyToday = true; S.everActive = true;
+
+        // The active set is the target even when it is already full — it grows to
+        // hold the overtime. Only when nothing is attached do we fall back to any
+        // unfinished set, so work never lands on a section you weren't working on.
+        const set = P.sets.find(s => s.id === P.active) || P.sets.find(s => s.done < s.total);
+        const diff = set && DIFF[set.diff] ? set.diff : POMO_NOSET;
+        const cat = set && CATS[set.cat] ? set.cat : "Editing";
+
+        // Pour the whole fill into ONE set — the one you were working on. When it
+        // tops up and work remains, the set GROWS a bucket to take it rather than
+        // spilling into a different set: overtime belongs to the section you were
+        // actually in. Each bucket pays 1/base of that set's rate, grown ones too.
+        let left = fill, poured = [], grew = 0, guard = 0, payMin = 0, payXp = 0;
+        const target = set;
+        if (target) {
+          // Pin the pay rate BEFORE growing anything. Without this, a set that
+          // reached here without a base (hand-made state, a save that skipped
+          // migration) would have setBase() read the grown total and quietly
+          // devalue every bucket in it.
+          if (!target.base) target.base = target.total;
+          while (left > 0.0001 && guard++ < 120) {
+            const room = target.total - target.done;
+            if (room <= 0.0001) {
+              if (target.total >= SET_MAX) break;      // never grow without end
+              target.total++; grew++;
+              continue;
+            }
+            const take = Math.min(room, left);
+            target.done = Math.round((target.done + take) * 1000) / 1000;
+            payMin += bucketMin(target) * take; payXp += bucketXp(target) * take;
+            left -= take;
+          }
+          poured.push(target.name + " " + fmtBk(target.done) + "/" + target.total);
+        }
+        // Work with no set to pour into (none attached, or every set full) pays
+        // like a one-bucket Easy set — the floor, never better than a real set.
+        if (left > 0.0001) { payMin += rateMin(POMO_NOSET) * left; payXp += rateXp(POMO_NOSET) * left; }
+        const bonus = Math.max(1, Math.round(payMin * mult));
+        const xpGain = Math.max(1, Math.round(payXp * mult));
+        S.bank += bonus; S.xp += xpGain; S.catXp[cat] = (S.catXp[cat] || 0) + xpGain;
+
+        const modeTag = P.mode === "flowtime" ? "Flow session (" + worked + "m)" : "Pomodoro cycle";
+        const pay = "+" + xpGain + " XP, +" + bonus + "m game time";
+        let energyNote = "";
+        if (flowStartedAt && P.mode === "flowtime") {
+          const e = logFlowEnergy(flowStartedAt, worked);
+          const nm = { m: "Morning", a: "Afternoon", e: "Evening" }[e.sl];
+          energyNote = e.manual != null
+            ? " Energy Map: " + nm + " keeps your manual " + e.manual + "/5."
+            : " Energy Map: " + nm + " auto-set to " + e.score + "/5.";
+        }
+        const bonusNote = mult > 1 ? " Deep-focus bonus ×" + mult + "." : "";
+        const grewNote = grew ? " Overtime: +" + grew + " bucket" + (grew > 1 ? "s" : "") +
+          " grown on " + set.name + " (now " + set.total + ", still " + fmtM(bucketMin(set)) + "m each)." : "";
+        const spillNote = left > 0.0001 ? " " + fmtBk(left) + " bucket of work had nowhere to go — this set hit the " + SET_MAX + "-bucket ceiling." : "";
+        const capNote = capped ? " ⚠ Timer had run " + Math.round(capped / 60) + "h — capped at " + FLOW_MAX + "m. Stop the clock when you stop working." : "";
+
+        if (poured.length) {
+          pomoMsg = "🍅 " + modeTag + " complete — " + fmtBk(fill) + " bucket" + (fill >= 2 ? "s" : "") +
+            " into " + poured.join(", then ") + " (1/" + setBase(set) + " of the " + diff + " rate per bucket): " + pay + "." + bonusNote + grewNote + spillNote + capNote + energyNote + " Break time.";
+        } else {
+          pomoMsg = "🍅 " + modeTag + " complete — no bucket set attached, so the " + POMO_NOSET +
+            " rate applies: " + pay + "." + bonusNote + capNote + energyNote + " Break time.";
+        }
+
+        dbPut("pomodoro", { ts: new Date().toISOString(), mode: P.mode || "pomodoro", worked, fill: Math.round(fill * 1000) / 1000, mult, capped: capped || null, set: set ? set.name : null, bucket: set ? fmtBk(set.done) + "/" + set.total : null, diff, cat, note: P.note || "", xp: xpGain, min: bonus });
+        if (workByDay) { const wk = dayKey(shiftNow()); workByDay[wk] = (workByDay[wk] || 0) + worked; }
+        logTx("pomodoro", modeTag + (set ? " — " + set.name : "") + " · " + fmtBk(fill) + " bucket · " + diff, { xp: xpGain, min: bonus, cat, note: P.note || "" });
+        P.note = "";
+        P.phase = "break";
+        P.breakMin = pomoBreakMin(worked);
+        if (autoBreak) P.endsAt = Date.now() + P.breakMin * 60000;
+      } else {
+        P.phase = "work";
+        P.breakMin = null;
+        pomoMsg = "☕ Break over — start the next work cycle.";
+      }
+    }
+
+    // ================= ACTIONS =================
+    window.act = {
+      tab(t) { tab = t; render(); },
+      calNav(d) { calMonth += d; render(); },
+      // ---- habits (small, daily, fixed +10m reward) ----
+      toggleHabit(id) {
+        const h = S.habits.find(x => x.id === id);
+        if (!h.done) {
+          const xp = Math.round(HABIT_XP * streakMult());
+          const min = Math.round(HABIT_MIN * rewardFactor());
+          h.done = true; h.earned = xp; h.earnedMin = min;
+          S.xp += xp; S.bank += min; S.catXp[h.cat] = (S.catXp[h.cat] || 0) + xp;
+          S.anyToday = true; S.everActive = true;
+          logTx("habit", "Habit done: " + h.name, { xp, min, cat: h.cat });
+        } else {
+          logTx("habit", "Habit undone: " + h.name, { xp: -(h.earned || 0), min: -(h.earnedMin || 0), cat: h.cat });
+          S.xp = Math.max(0, S.xp - (h.earned || 0)); S.bank = Math.max(0, S.bank - (h.earnedMin || 0));
+          S.catXp[h.cat] = Math.max(0, (S.catXp[h.cat] || 0) - (h.earned || 0));
+          h.done = false; delete h.earned; delete h.earnedMin;
+        }
+        stampToday(); save(); render();
+      },
+      addHabit() {
+        const n = document.getElementById("hn").value.trim();
+        if (!n) return;
+        const habit = { id: "h" + Date.now(), name: n, cat: document.getElementById("hc").value, done: false };
+        S.habits.push(habit);
+        dbPut("tasks", { ts: new Date().toISOString(), kind: "habit", name: n, cat: habit.cat });
+        logTx("task", "Habit added: " + n);
+        stampToday(); save(); render();
+      },
+      delHabit(id) {
+        const h = S.habits.find(x => x.id === id);
+        if (!h) return;
+        logTx("task", "Habit deleted: " + h.name + (h.done ? " (completed \u2014 progress kept)" : ""));
+        if (h.done) bankCredit("habit");
+        S.habits = S.habits.filter(x => x.id !== id);
+        stampToday(); save(); render();
+      },
+      // move a task between the two lists without retyping it
+      toHabit(id) {
+        const d = S.dailies.find(x => x.id === id); if (!d) return;
+        if (isLocked(d)) return refuse(d, d.name);
+        if (d.done) bankCredit("daily");   // keep the credit on the list it is leaving
+        S.dailies = S.dailies.filter(x => x.id !== id);
+        S.habits.push({ id: "h" + Date.now(), name: d.name, cat: d.cat, done: !!d.done });
+        logTx("task", "Moved to habits: " + d.name);
+        stampToday(); save(); render();
+      },
+      toDaily(id) {
+        const h = S.habits.find(x => x.id === id); if (!h) return;
+        if (h.done) bankCredit("habit");   // keep the credit on the list it is leaving
+        S.habits = S.habits.filter(x => x.id !== id);
+        S.dailies.push({ id: "d" + Date.now(), name: h.name, cat: h.cat, diff: "Easy", timers: 0, done: !!h.done });
+        logTx("task", "Moved to dailies: " + h.name);
+        stampToday(); save(); render();
+      },
+      toggleDaily(id) {
+        const d = S.dailies.find(x => x.id === id);
+        if (!d.done) {
+          const xp = Math.round(DIFF[d.diff].xp * streakMult());
+          const min = dailyCheckMin(d);
+          const othersDone = S.dailies.filter(x => x.id !== id).every(x => x.done);
+          d.done = true; d.earned = xp; d.earnedMin = min;
+          S.xp += xp; S.bank += min; S.catXp[d.cat] = (S.catXp[d.cat] || 0) + xp;
+          S.anyToday = true; S.everActive = true;
+          if (d.cat === "Editing") clearFatigueByEditing();
+          if (othersDone) S.streak++;
+          logTx("daily", "Daily done: " + d.name, { xp, min, cat: d.cat });
+        } else {
+          logTx("daily", "Daily undone: " + d.name, { xp: -(d.earned || 0), min: -(d.earnedMin || 0), cat: d.cat });
+          S.xp = Math.max(0, S.xp - (d.earned || 0)); S.bank = Math.max(0, S.bank - (d.earnedMin || 0));
+          S.catXp[d.cat] = Math.max(0, (S.catXp[d.cat] || 0) - (d.earned || 0));
+          d.done = false; delete d.earned; delete d.earnedMin;
+        }
+        stampToday(); save(); render();
+      },
+      // ---- subtasks: break a big quest into steps ----
+      // Steps are a progress tool, not a second economy: they pay nothing on
+      // their own. Ticking the LAST open step completes the quest (which pays
+      // its normal rate); unticking a step on a finished quest reopens it.
+      toggleSubs(id) { subOpen[id] = !subOpen[id]; render(); setTimeout(() => { const el = document.getElementById("sub-" + id); if (el) el.focus(); }, 0); },
+      addSub(id) {
+        const d = S.dailies.find(x => x.id === id); if (!d) return;
+        const el = document.getElementById("sub-" + id);
+        const n = el ? el.value.trim() : "";
+        if (!n) return;
+        if (!d.subs) d.subs = [];
+        d.subs.push({ id: "s" + Date.now(), name: n, done: false });
+        subOpen[id] = true;
+        logTx("task", "Step added to " + d.name + ": " + n);
+        save(); render();
+        setTimeout(() => { const f = document.getElementById("sub-" + id); if (f) f.focus(); }, 0);
+      },
+      toggleSub(id, sid) {
+        const d = S.dailies.find(x => x.id === id); if (!d || !d.subs) return;
+        const st = d.subs.find(x => x.id === sid); if (!st) return;
+        st.done = !st.done;
+        if (st.done && !d.done && d.subs.every(x => x.done)) {
+          act.toggleDaily(id);            // last step closes the quest (and saves)
+          return;
+        }
+        if (!st.done && d.done) {
+          act.toggleDaily(id);            // reopening a step reopens the quest
+          return;
+        }
+        save(); render();
+      },
+      delSub(id, sid) {
+        const d = S.dailies.find(x => x.id === id); if (!d || !d.subs) return;
+        if (isLocked(d)) return refuse(d, d.name);   // locked quests keep their plan
+        d.subs = d.subs.filter(x => x.id !== sid);
+        save(); render();
+      },
+      delDaily(id) {
+        const d = S.dailies.find(x => x.id === id);
+        if (!d) return;
+        if (isLocked(d)) return refuse(d, d.name);
+        logTx("task", "Task deleted: " + d.name + (d.done ? " (completed \u2014 progress kept)" : ""));
+        if (d.done) bankCredit("daily");
+        S.dailies = S.dailies.filter(x => x.id !== id); stampToday(); save(); render();
+      },
+      lockDaily(id) {
+        const d = S.dailies.find(x => x.id === id);
+        if (!d || isLocked(d)) return;
+        d.lockedDay = sysDay();
+        lockMsg = "🔒 \"" + d.name + "\" locked until the 8:40 AM reset. No deleting your way out of this one.";
+        logTx("lock", "Daily locked: " + d.name);
+        save(); render();
+      },
+      addDaily(later) {
+        const n = document.getElementById("dn").value.trim();
+        if (!n) return;
+        const t = Math.max(0, Math.min(48, parseInt(document.getElementById("dt").value, 10) || 0));
+        const q = { name: n, cat: document.getElementById("dc").value, diff: document.getElementById("dd").value, timers: t };
+        if (later) {
+          // planned for tomorrow: parked until the 8:40 AM reset moves it into dailies
+          S.tomorrow.push(Object.assign({ id: "q" + Date.now() }, q));
+          logTx("task", "Planned for tomorrow: " + n);
+          save(); render(); return;
+        }
+        pushDaily(q);
+        stampToday(); save(); render();
+      },
+      delTomorrow(id) {
+        S.tomorrow = S.tomorrow.filter(x => x.id !== id);
+        save(); render();
+      },
+      addWeekly() {
+        const t = document.getElementById("wn").value.trim();
+        if (!t) return;
+        const xp = Math.max(10, Math.min(1000, parseInt(document.getElementById("wx").value, 10) || 80));
+        const w = { id: "w" + Date.now(), title: t, cat: document.getElementById("wc").value, xp, done: false };
+        S.weekly.push(w);
+        dbPut("tasks", { ts: new Date().toISOString(), kind: "weekly", name: t, cat: w.cat, xp });
+        logTx("task", "Weekly added: " + t);
+        save(); render();
+      },
+      delWeekly(id) {
+        const w = S.weekly.find(x => x.id === id);
+        if (!w) return;
+        if (isLocked(w)) return refuse(w, w.title);
+        logTx("task", "Weekly deleted: " + w.title);
+        S.weekly = S.weekly.filter(x => x.id !== id); save(); render();
+      },
+      lockWeekly(id) {
+        const w = S.weekly.find(x => x.id === id);
+        if (!w || isLocked(w)) return;
+        w.lockedWeek = mondayOf(shiftNow());
+        lockMsg = "🔒 \"" + w.title + "\" locked until Monday 8:40 AM. No deleting your way out of this one.";
+        logTx("lock", "Weekly locked: " + w.title);
+        save(); render();
+      },
+      toggleWeekly(id) {
+        const w = S.weekly.find(x => x.id === id);
+        if (!w.done) {
+          const xp = Math.round(w.xp * streakMult());
+          const min = Math.round((w.xp / 2) * rewardFactor());
+          w.done = true; w.earned = xp; w.earnedMin = min;
+          S.xp += xp; S.bank += min; S.catXp[w.cat] = (S.catXp[w.cat] || 0) + xp;
+          logTx("weekly", "Weekly done: " + w.title, { xp, min, cat: w.cat });
+        } else {
+          logTx("weekly", "Weekly undone: " + w.title, { xp: -(w.earned || 0), min: -(w.earnedMin || 0), cat: w.cat });
+          S.xp = Math.max(0, S.xp - (w.earned || 0)); S.bank = Math.max(0, S.bank - (w.earnedMin || 0));
+          S.catXp[w.cat] = Math.max(0, (S.catXp[w.cat] || 0) - (w.earned || 0));
+          w.done = false; delete w.earned; delete w.earnedMin;
+        }
+        save(); render();
+      },
+      slayBoss(id) {
+        const b = S.bosses.find(x => x.id === id);
+        if (b.done || (b.target && S.earnings < b.target)) return;
+        const min = Math.round((b.big ? 90 : 45) * rewardFactor());
+        b.done = true; S.xp += b.xp; S.bank += min;
+        S.catXp.Work = (S.catXp.Work || 0) + b.xp;
+        logTx("boss", "Boss slain: " + b.title, { xp: b.xp, min });
+        save(); render();
+      },
+      addEarn() {
+        const v = parseFloat(document.getElementById("earn").value);
+        if (!v || v <= 0) return;
+        S.earnings = +(S.earnings + v).toFixed(2);
+        S.xp += Math.round(v); S.catXp.Work = (S.catXp.Work || 0) + Math.round(v);
+        logTx("earning", "Income logged", { amount: v, xp: Math.round(v) });
+        save(); render();
+      },
+      logGame() {
+        const m = parseInt(document.getElementById("gm").value, 10);
+        if (!m || m <= 0) return;
+        const spend = Math.min(m, S.bank, gameCap() - S.usedToday);
+        if (spend <= 0) return;
+        S.bank -= spend; S.usedToday += spend;
+        logTx("spend", "Game time spent", { min: -spend });
+        save(); render();
+      },
+      logPhone() {
+        const m = parseInt(document.getElementById("pm").value, 10);
+        if (!m || m <= 0) return;
+        const spend = Math.min(m, S.bank, PHONE_CAP - S.phoneToday);
+        if (spend <= 0) return;
+        S.bank -= spend; S.phoneToday += spend;
+        logTx("spend", "Phone time spent", { min: -spend });
+        save(); render();
+      },
+      pipe(k, delta) {
+        S.pipe[k] = Math.max(0, (S.pipe[k] || 0) + delta);
+        save(); render();
+      },
+      startRaid() { if (S.raidStart) return; raidMsg = ""; S.raidStart = Date.now(); save(); render(); },
+      abandonRaid() { S.raidStart = null; raidMsg = "Raid abandoned. No loot for cowards — try again."; save(); render(); },
+      finishRaid() { finishRaidCore(); save(); render(); },
+      openChest() {
+        if (rolling || S.chestOpened || !S.dailies.every(d => d.done)) return;
+        rolling = true; lootMsg = null; render();
+        setTimeout(() => {
+          const l = rollLoot(); S.chestOpened = true; l.apply(S);
+          lootMsg = l.label; rolling = false;
+          logTx("loot", "Chest: " + l.label);
+          save(); render();
+        }, 2200);
+      },
+      // ---- pomodoro ----
+      pomoStart() {
+        const P = S.pomo;
+        if (P.endsAt || P.flowStart) return;
+        pomoMsg = "";
+        if (P.phase === "work" && P.mode === "flowtime" && P.paused == null) {
+          P.flowStart = Date.now();   // open-ended: count up until focus drops
+          save(); render(); return;
+        }
+        const dur = (P.phase === "break" ? (P.breakMin || pomoBreakMin()) : pomoWorkMin()) * 60000;
+        P.endsAt = Date.now() + (P.paused != null ? P.paused : dur);
+        P.paused = null;
+        save(); render();
+      },
+      flowStop() {
+        const P = S.pomo;
+        if (!P.flowStart) return;
+        const worked = (Date.now() - P.flowStart) / 60000;
+        if (worked < 5) { P.flowStart = null; pomoMsg = "Flow session under 5 minutes — not logged. Start again when you're ready."; save(); render(); return; }
+        finishPomoCore(true, worked);
+        save(); render();
+      },
+      pomoMode(m) {
+        const P = S.pomo;
+        if (!FOCUS_MODES[m]) return;
+        if (P.endsAt || P.flowStart || P.paused != null) { pomoMsg = "Finish or reset the running timer before switching modes."; render(); return; }
+        P.mode = m; P.phase = "work"; P.breakMin = null; pomoMsg = "";
+        save(); render();
+      },
+      rateEnergy(slot, v) {
+        const k = dayKey(shiftNow());
+        if (!S.energy) S.energy = {};
+        const rec = S.energy[k] || (S.energy[k] = {});
+        rec[slot] = rec[slot] === v ? null : v;   // tap your manual number again to hand the slot back to Flowtime
+        save(); render();
+      },
+      pomoPause() { const P = S.pomo; if (!P.endsAt) return; P.paused = Math.max(0, P.endsAt - Date.now()); P.endsAt = null; save(); render(); },
+      pomoReset() { const P = S.pomo; P.endsAt = null; P.paused = null; P.flowStart = null; P.breakMin = null; P.phase = "work"; pomoMsg = ""; save(); render(); },
+      pomoSkipBreak() { const P = S.pomo; if (P.phase !== "break") return; P.phase = "work"; P.endsAt = null; P.paused = null; pomoMsg = "Break skipped — back on the grind."; save(); render(); },
+      finishPomo() { finishPomoCore(true); save(); render(); },
+      pomoNote() { const el = document.getElementById("pnote"); if (el) { S.pomo.note = el.value; save(); } },
+      addBucketSet() {
+        const n = document.getElementById("bn").value.trim();
+        const c = parseInt(document.getElementById("bc").value, 10);
+        if (!n || !c || c < 1) return;
+        const id = "ps" + Date.now(), diff = document.getElementById("bd").value, total = Math.min(c, SET_MAX);
+        const cat = document.getElementById("bx").value;
+        S.pomo.sets.push({ id, name: n, total, base: total, done: 0, diff, cat });
+        if (!S.pomo.active) S.pomo.active = id;
+        dbPut("tasks", { ts: new Date().toISOString(), kind: "bucket-set", name: n, buckets: total, diff, cat });
+        logTx("bucket", "Bucket set added: " + n + " (" + total + " × " + diff + " = " + total * DIFF[diff].min + "m)");
+        save(); render();
+      },
+      delBucketSet(id) {
+        const s = S.pomo.sets.find(x => x.id === id);
+        if (s) logTx("bucket", "Bucket set removed: " + s.name);
+        S.pomo.sets = S.pomo.sets.filter(x => x.id !== id);
+        if (S.pomo.active === id) S.pomo.active = S.pomo.sets[0] ? S.pomo.sets[0].id : null;
+        save(); render();
+      },
+      activeSet(id) { S.pomo.active = id; save(); render(); },
+      tickBucket(id, i) {
+        const s = S.pomo.sets.find(x => x.id === id); if (!s) return;
+        // manual taps snap to whole buckets, clearing any partial fill
+        s.done = i < s.done ? i : i + 1;
+        logTx("bucket", "Bucket " + fmtBk(s.done) + "/" + s.total + " — " + s.name);
+        save(); render();
+      },
+      // ---- spring model journal ----
+      addJournal() {
+        const el2 = document.getElementById("sj");
+        const t = el2 ? el2.value.trim() : "";
+        if (!t) return;
+        const e = { id: "j" + Date.now(), ts: new Date().toISOString(), week: S.weekStart, text: t };
+        S.journal.unshift(e);
+        dbPut("journal", { ts: e.ts, week: e.week, text: t });
+        logTx("journal", "Spring Model entry logged");
+        save(); render();
+      },
+      delJournal(id) { S.journal = S.journal.filter(j => j.id !== id); save(); render(); },
+      // ---- client ledger ----
+      addClient() {
+        const n = document.getElementById("cn").value.trim();
+        if (!n) return;
+        const c = {
+          id: "cl" + Date.now(), ts: new Date().toISOString(), name: n,
+          platform: document.getElementById("cp").value, status: document.getElementById("cst").value,
+          value: parseFloat(document.getElementById("cv").value) || 0,
+          notes: document.getElementById("cno").value.trim()
+        };
+        S.clients.unshift(c);
+        logTx("client", "Client added: " + n + " (" + c.platform + ", " + c.status + ")");
+        save(); render();
+      },
+      clientStatus(id, st) {
+        const c = S.clients.find(x => x.id === id);
+        if (!c || c.status === st) return;
+        c.status = st;
+        logTx("client", c.name + " → " + st, (st === "Deal" || st === "Repeat") && c.value ? { amount: c.value } : undefined);
+        save(); render();
+      },
+      clientValue(id, v) { const c = S.clients.find(x => x.id === id); if (!c) return; c.value = parseFloat(v) || 0; save(); render(); },
+      delClient(id) {
+        const c = S.clients.find(x => x.id === id);
+        if (c) logTx("client", "Client removed: " + c.name);
+        S.clients = S.clients.filter(x => x.id !== id);
+        save(); render();
+      },
+      // ---- database ----
+      async exportDB() {
+        const [transactions, tasks, pomodoro, journal] = await Promise.all([dbGetAll("transactions"), dbGetAll("tasks"), dbGetAll("pomodoro"), dbGetAll("journal")]);
+        const payload = { format: "lifesys-db", version: 2, exportedAt: new Date().toISOString(), state: S, transactions, tasks, pomodoro, journal };
+        const d = new Date(), suf = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+        downloadFile("system-db-" + suf + ".json", JSON.stringify(payload, null, 2), "application/json");
+        dbMsg = "✅ Database exported (" + transactions.length + " transactions, " + tasks.length + " tasks, " + pomodoro.length + " cycles).";
+        render();
+      },
+      async exportCSV() {
+        const [transactions, tasks, pomodoro] = await Promise.all([dbGetAll("transactions"), dbGetAll("tasks"), dbGetAll("pomodoro")]);
+        const d = new Date(), suf = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+        let n = 0;
+        for (const [name, rows] of [["transactions", transactions], ["tasks", tasks], ["pomodoro", pomodoro], ["clients", S.clients || []], ["journal", S.journal || []]]) {
+          if (!rows.length) continue;
+          downloadFile("system-" + name + "-" + suf + ".csv", "\uFEFF" + toCSV(rows), "text/csv;charset=utf-8");
+          n++;
+        }
+        dbMsg = n ? "✅ " + n + " CSV file(s) exported — open them in Excel or Sheets." : "Nothing to export yet — the stores are empty.";
+        render();
+      },
+      importDBClick() { document.getElementById("dbFile").click(); },
+      // ---- start fresh ----
+      // Two taps, never one: the first arms it, the second actually erases. There
+      // is no undo beyond a JSON export, so the button refuses to be a slip.
+      wipeArm() { wipeArmed = true; dbMsg = ""; render(); },
+      wipeCancel() { wipeArmed = false; render(); },
+      async wipeAll() {
+        if (!wipeArmed) return;
+        try { localStorage.removeItem(KEY); } catch (e) { }
+        if (cloudUser) {
+          try {
+            await cloudResetLogs();
+            const fresh = Object.assign(structuredClone(DEFAULT), { _rev: Date.now() });
+            const r = await sb.from("system_state").upsert({ user_id: cloudUser.id, state: fresh, updated_at: new Date().toISOString() });
+            if (!r.error) { lsSet(KEY, JSON.stringify(fresh)); lsSet(SYNC_REV, String(fresh._rev)); }
+          } catch (e) { }
+        }
+        if (db) { try { db.close(); } catch (e) { } db = null; }
+        await new Promise(res => {
+          const q = indexedDB.deleteDatabase("lifesys-db");
+          q.onsuccess = res; q.onerror = res; q.onblocked = res;
+        });
+        location.reload();
+      },
+    };
+    document.getElementById("dbFile").addEventListener("change", function (ev) {
+      const f = ev.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = async () => {
+        try {
+          const j = JSON.parse(r.result);
+          // full DB export, or a legacy "Download Save" file (bare state) — both import fine
+          const state = j && j.state ? j.state : (j && typeof j.xp === "number" ? j : null);
+          if (!state) throw new Error("bad file");
+          S = Object.assign({}, structuredClone(DEFAULT), state);
+          if (db) {
+            for (const [store, rows] of [["transactions", j.transactions], ["tasks", j.tasks], ["pomodoro", j.pomodoro], ["journal", j.journal]]) {
+              if (!Array.isArray(rows)) continue;
+              await new Promise(res => {
+                const tx = db.transaction(store, "readwrite"), os = tx.objectStore(store);
+                os.clear(); rows.forEach(row => { try { delete row.sy; os.put(row); } catch (e) { } });
+                tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+              });
+            }
+          }
+          if (cloudUser) { try { await cloudResetLogs(); } catch (e) { } }
+          save(); dbMsg = "✅ Database imported."; load(); render(); loadWorkTotals();
+        } catch (e) { dbMsg = "❌ That file isn't a valid System database or save."; render(); }
+      };
+      r.readAsText(f); ev.target.value = "";
+    });
+
+    // ================= RENDER =================
+    function ensureTick() {
+      if (S.raidStart && !raidTimer) {
+        raidTimer = setInterval(() => {
+          if (!S.raidStart) { clearInterval(raidTimer); raidTimer = null; return; }
+          const rem = RAID_MIN * 60000 - (Date.now() - S.raidStart);
+          if (rem <= 0) { clearInterval(raidTimer); raidTimer = null; act.finishRaid(); }
+          else { const el = document.getElementById("raidclock"); if (el) el.textContent = fmtClock(rem); }
+        }, 1000);
+      }
+      if (!S.raidStart && raidTimer) { clearInterval(raidTimer); raidTimer = null; }
+      if ((S.pomo.endsAt || S.pomo.flowStart) && !pomoTimer) {
+        pomoTimer = setInterval(() => {
+          const P2 = S.pomo;
+          if (!P2.endsAt && !P2.flowStart) { clearInterval(pomoTimer); pomoTimer = null; return; }
+          const el = document.getElementById("pomoclock");
+          if (P2.flowStart) { if (el) el.textContent = fmtClock(Date.now() - P2.flowStart); return; }
+          const rem = P2.endsAt - Date.now();
+          if (rem <= 0) { clearInterval(pomoTimer); pomoTimer = null; act.finishPomo(); }
+          else if (el) el.textContent = fmtClock(rem);
+        }, 1000);
+      }
+      if (!S.pomo.endsAt && !S.pomo.flowStart && pomoTimer) { clearInterval(pomoTimer); pomoTimer = null; }
+    }
+
+    function render() {
+      const { level, cur, need } = levelInfo(S.xp);
+      const rank = rankOf(level);
+      const cap = gameCap();
+      const mult = streakMult();
+      const editingDone = S.raidToday || S.dailies.some(d => d.cat === "Editing" && d.done);
+      const allDone = S.dailies.length > 0 && S.dailies.every(d => d.done);
+      const gameLeft = Math.max(0, cap - S.usedToday);
+      const phoneLeft = Math.max(0, PHONE_CAP - S.phoneToday);
+      const doneCount = S.dailies.filter(d => d.done).length;
+      const habitDone = S.habits.filter(h => h.done).length;
+      const bigSlain = S.bosses.filter(b => b.done && b.big).length;
+      const smallSlain = S.bosses.filter(b => b.done && !b.big).length;
+      const wonTotal = S.clients.filter(c => c.status === "Deal" || c.status === "Repeat").reduce((a, c) => a + (+c.value || 0), 0);
+      const fatigueBanner = S.fatigued ? '<div class="banner" style="background:#241717;border-color:#4A2E2E;color:#D6B8B8">😮‍💨 <b>FATIGUED</b> — you missed a full day. All reward minutes are halved until you complete one editing session (daily or raid).</div>' : "";
+      const raidActive = !!S.raidStart;
+      const lockBanner = lockMsg ? `<div class="banner" style="background:#241E12;border-color:#4A3A1E;color:var(--gold)">${esc(lockMsg)}</div>` : "";
+
+      // ---------- DAILY PANEL ----------
+      const qBody = fatigueBanner + lockBanner
+        + `<div class="raid">
+      <div class="section" style="margin-top:0">⚔️ EDITING RAID — ${RAID_MIN} MIN</div>
+      ${raidActive
+          ? `<div class="raidclock" id="raidclock">${fmtClock(RAID_MIN * 60000 - (Date.now() - S.raidStart))}</div>
+          <div class="meta" style="margin:6px 0 10px">Locked in. When this hits zero your editing daily auto-completes and game time unlocks.</div>
+          <button class="ghost" onclick="act.abandonRaid()">Abandon raid</button>`
+          : `<div class="meta" style="margin-bottom:10px">One button between you and the timeline. Start it, edit until zero — the System does the rest.</div>
+          <button class="gold" onclick="act.startRaid()">START RAID</button>`}
+      ${raidMsg ? `<div style="color:var(--gold);font-weight:600;font-size:13px;margin-top:10px">${esc(raidMsg)}</div>` : ""}
+    </div>`
+        + `<div class="section" style="margin-top:16px">🪷 HABIT QUESTS <span class="meta">· ${habitDone}/${S.habits.length} · +${HABIT_MIN}m each</span></div>
+    <div class="hint">The small non-negotiables — brush, bathe, read, stretch. Every habit ticked is <b style="color:var(--gold)">+${HABIT_MIN} min game time</b> and +${HABIT_XP} XP. Clear <b>all</b> of them (plus ${Math.round(CROSS_PCT * 100)}% of your dailies) to earn the day's ✗ on the calendar.</div>`
+        + (S.habits.length ? S.habits.map(h => `
+    <div class="card" style="opacity:${h.done ? "0.55" : "1"};border-left:3px solid ${CATS[h.cat].color}">
+      <button class="check" style="border-color:${CATS[h.cat].color};background:${h.done ? CATS[h.cat].color : "transparent"}" onclick="act.toggleHabit('${h.id}')">${h.done ? "✓" : ""}</button>
+      <div style="flex:1">
+        <div style="font-weight:500;${h.done ? "text-decoration:line-through" : ""}">${esc(h.name)}</div>
+        <div class="meta">${CATS[h.cat].icon} ${h.cat} · +${Math.round(HABIT_XP * mult)} XP · <b style="color:var(--gold)">+${Math.round(HABIT_MIN * rewardFactor())}m game</b></div>
+      </div>
+      <button class="del" title="Move down to daily quests" style="font-size:16px" onclick="act.toDaily('${h.id}')">↓</button>
+      <button class="del" onclick="act.delHabit('${h.id}')">✕</button>
+    </div>`).join("")
+          : `<div class="card"><div class="meta">No habits yet. Add one below — or press <b style="color:var(--soft)">↑</b> on any daily quest to move it up here.</div></div>`)
+        + `<div class="card col" style="gap:8px">
+      <input id="hn" placeholder="New habit… (e.g. Brushing)">
+      <div class="row">
+        <select id="hc">${Object.keys(CATS).map(c => `<option ${c === "Body" ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <button class="gold" onclick="act.addHabit()">Add</button>
+      </div>
+    </div>`
+        + `<div class="section" style="margin-top:18px">📋 DAILY QUESTS <span class="meta">· ${doneCount}/${S.dailies.length}</span></div>`
+        + `<div class="hint">Dailies reset at 8:40 AM — late-night grinding still counts as today. Finish ALL to unlock the Loot Chest. Big quest? Hit <b>＋</b> to break it into steps — ticking the last step completes the quest. Hit 🔓 on a quest to lock it until the 8:40 AM reset — you cannot delete or move a locked quest, though you can always add more.${mult > 1 ? ` Streak bonus active: <b style="color:var(--gold)">all XP ×${mult}</b>.` : " Reach a 7-day streak for ×1.1 XP (14d ×1.2, 30d ×1.5)."}</div>`
+        + S.dailies.map(d => {
+          const subs = d.subs || [];
+          const sDone = subs.filter(x => x.done).length;
+          const open = !!subOpen[d.id];
+          const pct = subs.length ? Math.round(sDone / subs.length * 100) : 0;
+          return `
+    <div class="card col quest ${d.done ? "is-done" : ""}" style="--cat:${CATS[d.cat].color}">
+      <div class="qrow">
+      <button class="check" style="border-color:${CATS[d.cat].color};background:${d.done ? CATS[d.cat].color : "transparent"}" onclick="act.toggleDaily('${d.id}')">${d.done ? "✓" : ""}</button>
+      <div style="flex:1;min-width:0">
+        <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}</div>
+        ${d.timers
+          ? `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · <b style="color:var(--gold)">⏱ ${d.timers} cycles</b></div>
+        <div class="meta">+${fmtM(rateMin(d.diff) / d.timers)}m per bucket (${rateMin(d.diff)}m ÷ ${d.timers}) · +${rateXp(d.diff)} XP +${rateMin(d.diff)}m on finish → <b style="color:var(--gold)">+${dailyWorthXp(d)} XP · +${dailyWorth(d)}m total</b></div>`
+          : `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · +${rateXp(d.diff)} XP · +${dailyWorth(d)}m game</div>`}
+      </div>
+      <button class="del steps-btn ${open ? "on" : ""}" title="Break into steps" onclick="act.toggleSubs('${d.id}')">${subs.length ? sDone + "/" + subs.length : "＋"}</button>
+      ${isLocked(d)
+        ? `<span class="badge" title="Locked until the 8:40 AM reset — cannot be deleted or moved" style="background:#2A1A12;color:var(--gold)">🔒</span>`
+        : `<button class="del" title="Move up to habits" style="font-size:16px" onclick="act.toHabit('${d.id}')">↑</button>
+      <button class="del" title="Lock until the 8:40 AM reset — you cannot delete or move it" style="font-size:15px" onclick="act.lockDaily('${d.id}')">🔓</button>
+      <button class="del" onclick="act.delDaily('${d.id}')">✕</button>`}
+      </div>
+      ${subs.length ? `<div class="subbar"><div class="subfill" style="width:${pct}%"></div></div>` : ""}
+      ${subs.length || open ? `<div class="subs">
+        ${subs.map(x => `<div class="subitem ${x.done ? "is-done" : ""}">
+          <button class="subcheck ${x.done ? "on" : ""}" onclick="act.toggleSub('${d.id}','${x.id}')">${x.done ? "✓" : ""}</button>
+          <span class="subname">${esc(x.name)}</span>
+          ${isLocked(d) ? "" : `<button class="del" title="Remove step" onclick="act.delSub('${d.id}','${x.id}')">✕</button>`}
+        </div>`).join("")}
+        ${open ? `<div class="subadd">
+          <input id="sub-${d.id}" placeholder="Next step… (Enter to add)" onkeydown="if(event.key==='Enter'){event.preventDefault();act.addSub('${d.id}')}">
+          <button class="gold" onclick="act.addSub('${d.id}')">Add</button>
+        </div>` : ""}
+      </div>` : ""}
+    </div>`;
+        }).join("")
+        + `<div class="card col" style="gap:8px">
+      <input id="dn" placeholder="New daily quest…">
+      <div class="row">
+        <select id="dc">${Object.keys(CATS).map(c => `<option>${c}</option>`).join("")}</select>
+        <select id="dd">${Object.keys(DIFF).map(d => `<option ${d === "Medium" ? "selected" : ""}>${d}</option>`).join("")}</select>
+      </div>
+      <div class="row">
+        <input id="dt" type="number" min="0" placeholder="⏱ Buckets (optional)">
+        <button class="gold" onclick="act.addDaily()">Add</button>
+        <button class="ghost" title="Park it until the 8:40 AM reset" onclick="act.addDaily(true)">🌙 Tomorrow</button>
+      </div>
+      <div class="meta">One <b>rate</b> = the difficulty's payout — ${Object.entries(DIFF).map(([k, v]) => `${k} ${v.xp} XP/${v.min}m`).join(" · ")}. Every finished cycle pays a full rate, and ticking the box pays one more as a <b>finisher bonus</b>. So Hard × 5 cycles is worth <b style="color:var(--gold)">6 × (50 XP + 35m) = 300 XP · 210m</b>. No timers = one rate, paid on the box.</div>
+    </div>
+    ${S.tomorrow.length ? `<div class="section" style="margin-top:14px">🌙 PLANNED FOR TOMORROW <span class="meta">· ${S.tomorrow.length} · join your dailies at the 8:40 AM reset</span></div>`
+      + S.tomorrow.map(q => `<div class="card" style="border-left:3px solid ${CATS[q.cat].color};opacity:.8">
+        <div style="flex:1"><div style="font-weight:500">${esc(q.name)}</div>
+        <div class="meta">${CATS[q.cat].icon} ${q.cat} · ${q.diff}${q.timers ? ` · ⏱ ${q.timers} buckets` : ""}</div></div>
+        <button class="del" onclick="act.delTomorrow('${q.id}')">✕</button></div>`).join("") : ""}
+    <div class="chest" style="border-color:${allDone && !S.chestOpened ? "var(--gold)" : "var(--line2)"}">
+      <div style="font-size:40px" class="${rolling ? "shake" : (allDone && !S.chestOpened ? "pulse" : "")}">${S.chestOpened ? "📭" : "🎁"}</div>
+      ${rolling ? `<div style="color:var(--gold);font-weight:600">Rolling……… what will it be?</div>`
+          : lootMsg ? `<div style="color:var(--gold);font-weight:700">${esc(lootMsg)}</div>`
+            : S.chestOpened ? `<div class="meta">Chest opened. A new one appears tomorrow…</div>`
+              : allDone ? `<button class="gold" onclick="act.openChest()">OPEN LOOT CHEST</button>`
+                : `<div class="meta">${doneCount}/${S.dailies.length} dailies done — the chest waits…</div>`}
+    </div>`;
+
+      // ---------- CAMPAIGN PANEL ----------
+      const cBody = lockBanner +
+        `<div class="section">CLIENT PIPELINE <span class="meta">· this is where $5K comes from</span></div>
+    <div class="card col" style="gap:8px">
+      <div class="pipe">
+        ${[["contacted", "CONTACTED"], ["replied", "REPLIED"], ["call", "CALLS"], ["deal", "DEALS"]].map(([k, l]) => `
+          <div class="pipecell">
+            <div class="pipenum">${S.pipe[k] || 0}</div>
+            <div class="pipelbl">${l}</div>
+            <div style="display:flex;gap:4px;justify-content:center">
+              <button class="mini" onclick="act.pipe('${k}',-1)">−</button>
+              <button class="mini" onclick="act.pipe('${k}',1)">+</button>
+            </div>
+          </div>`).join("")}
+      </div>
+      <div class="meta">${S.pipe.contacted > 0 ? `Reply rate: ${Math.round((S.pipe.replied / S.pipe.contacted) * 100)}% · Close rate: ${S.pipe.replied > 0 ? Math.round((S.pipe.deal / S.pipe.replied) * 100) : 0}% of replies. ` : ""}Every outreach message = +1 Contacted. These numbers tell you what to fix.</div>
+    </div>
+    <div class="section" style="margin-top:16px">🤝 CLIENT LEDGER <span class="meta">· won so far: $${wonTotal}</span></div>
+    <div class="card col" style="gap:8px">
+      <input id="cn" placeholder="Client name…">
+      <div class="row">
+        <select id="cp">${CLIENT_SRC.map(p => `<option>${p}</option>`).join("")}</select>
+        <select id="cst">${CLIENT_STATUS.map(s2 => `<option>${s2}</option>`).join("")}</select>
+      </div>
+      <div class="row">
+        <input id="cv" type="number" placeholder="Deal value ($, optional)">
+        <button class="gold" onclick="act.addClient()">Add</button>
+      </div>
+      <input id="cno" placeholder="Notes (niche, contact, next step…)">
+    </div>`
+        + (S.clients.length ? S.clients.map(c => {
+          const won = c.status === "Deal" || c.status === "Repeat", lost = c.status === "Lost";
+          return `<div class="card col" style="gap:6px;border-left:3px solid ${won ? "var(--green)" : lost ? "#4A4E58" : "var(--blue)"};opacity:${lost ? "0.6" : "1"}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;font-weight:600">${esc(c.name)} <span class="meta">· ${esc(c.platform)}</span></div>
+          <select style="width:auto;padding:4px 8px;font-size:12px" onchange="act.clientStatus('${c.id}',this.value)">${CLIENT_STATUS.map(s2 => `<option ${s2 === c.status ? "selected" : ""}>${s2}</option>`).join("")}</select>
+          <button class="del" onclick="act.delClient('${c.id}')">✕</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" value="${+c.value || 0}" title="Deal value ($)" style="width:90px;padding:4px 8px;font-size:12px" onchange="act.clientValue('${c.id}',this.value)">
+          <span class="meta" style="flex:1">${c.notes ? esc(c.notes) : "—"}</span>
+        </div>
+      </div>`;
+        }).join("") : `<div class="hint">No clients tracked yet. The pipeline counts volume — this ledger remembers names. Every deal starts as a row here.</div>`)
+        + `<div class="section" style="margin-top:16px">WEEKLY QUESTS <span class="meta">· week of ${S.weekStart} · resets Monday 8:40 AM</span></div>
+    <div class="hint">These are <b>yours</b>. The System writes no weekly quests and never adds its own — it only owns the boss list below. Write the week you actually want; unfinished ones clear every Monday at 8:40 AM. Hit 🔓 on a quest to lock it until Monday 8:40 AM — you cannot delete a locked quest, though you can always add more.</div>
+    <div class="card col" style="gap:8px">
+      <input id="wn" placeholder="New weekly quest…">
+      <div class="row">
+        <select id="wc">${Object.keys(CATS).map(c => `<option ${c === "Editing" ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <input id="wx" type="number" min="10" max="1000" placeholder="XP (default 80)">
+        <button class="gold" onclick="act.addWeekly()">Add</button>
+      </div>
+      <div class="meta">Game time is half the XP — an 80 XP weekly pays +40m.</div>
+    </div>`
+        + (S.weekly.length ? S.weekly.map(w => `
+    <div class="card" style="opacity:${w.done ? "0.55" : "1"};border-left:3px solid ${CATS[w.cat].color}">
+      <button class="check" style="border-color:${CATS[w.cat].color};background:${w.done ? CATS[w.cat].color : "transparent"}" onclick="act.toggleWeekly('${w.id}')">${w.done ? "✓" : ""}</button>
+      <div style="flex:1">
+        <div style="font-weight:500;${w.done ? "text-decoration:line-through" : ""}">${esc(w.title)}</div>
+        <div class="meta">${CATS[w.cat].icon} ${w.cat} · +${Math.round(w.xp * mult)} XP · +${Math.round((w.xp / 2) * rewardFactor())}m game</div>
+      </div>
+      ${isLocked(w)
+        ? `<span class="badge" title="Locked until Monday 8:40 AM — cannot be deleted" style="background:#2A1A12;color:var(--gold)">🔒</span>`
+        : `<button class="del" title="Lock until Monday 8:40 AM — you cannot delete it" style="font-size:15px" onclick="act.lockWeekly('${w.id}')">🔓</button>
+      <button class="del" onclick="act.delWeekly('${w.id}')">✕</button>`}
+    </div>`).join("")
+          : `<div class="card"><div class="meta">No weekly quests yet — the week is a blank page. Add what matters above.</div></div>`)
+        + `<div class="section" style="margin-top:16px">⚙️ SPRING MODEL JOURNAL <span class="meta">· weekly build log</span></div>
+    <div class="card col" style="gap:8px">
+      <textarea id="sj" style="min-height:60px" placeholder="What did you implement in the Spring Model this week?"></textarea>
+      <button class="gold" onclick="act.addJournal()">Log Entry</button>
+    </div>`
+        + (S.journal.length ? S.journal.slice(0, 6).map(j => `
+    <div class="card col" style="gap:4px;border-left:3px solid ${CATS.Lab.color}">
+      <div style="display:flex;align-items:center"><span class="meta" style="flex:1">📅 week of ${esc(j.week)} · logged ${new Date(j.ts).toLocaleDateString()}</span><button class="del" onclick="act.delJournal('${j.id}')">✕</button></div>
+      <div style="font-size:13.5px;line-height:1.5">${esc(j.text)}</div>
+    </div>`).join("") : `<div class="hint">No entries yet — after each week's Spring Model session, write down what you built. Only you have the context; keep the trail here.</div>`)
+        + `<div class="section" style="margin-top:20px">BOSS QUESTS <span style="color:var(--vermilion)">⚔</span></div>
+    <div class="hint">Every boss slain permanently raises your daily game cap — small bosses <b style="color:var(--gold)">+1%</b>, BIG bosses <b style="color:var(--vermilion)">+25%</b>. Current cap: <b style="color:var(--gold)">${cap} min (${fmtH(cap)})</b> · ${smallSlain}/${S.bosses.filter(b => !b.big).length} small · ${bigSlain}/${S.bosses.filter(b => b.big).length} big slain.</div>
+    <div class="card col" style="gap:8px;border:1px solid #3A2E20">
+      <div style="font-weight:600">💵 War Chest: $${S.earnings} <span class="meta">/ $5,000</span></div>
+      <div class="track"><div class="fill" style="width:${Math.min(100, S.earnings / 5000 * 100)}%;background:linear-gradient(90deg,var(--green),var(--gold))"></div></div>
+      <div class="row">
+        <input id="earn" type="number" placeholder="Log new income ($)">
+        <button class="gold" onclick="act.addEarn()">Log&nbsp;$</button>
+      </div>
+    </div>`
+        + S.bosses.map(b => {
+          const ready = b.target ? S.earnings >= b.target : true;
+          return `<div class="card col" style="gap:6px;border-left:3px solid ${b.done ? "var(--green)" : b.big ? "var(--vermilion)" : "#8A6A1F"};opacity:${b.done ? "0.6" : "1"};${b.big && !b.done ? "box-shadow:0 0 12px #C93A2E22;" : ""}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:'Shippori Mincho',serif;font-weight:700;font-size:16px">${esc(b.title)}</span>
+          <span class="mono" style="color:${b.big ? "var(--vermilion)" : "var(--gold)"}">${b.big ? "BIG +25%" : "+1%"} cap</span>
+        </div>
+        <div class="meta">${esc(b.desc)}</div>
+        ${b.target ? `<div class="track"><div class="fill" style="width:${Math.min(100, S.earnings / b.target * 100)}%;background:var(--vermilion)"></div></div>` : ""}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="mono">+${b.xp} XP · +${b.big ? 90 : 45}m game</span>
+          ${b.done ? `<span style="color:var(--green);font-weight:700">SLAIN ✓</span>`
+              : `<button class="gold" ${ready ? "" : "disabled"} style="background:${ready ? "var(--vermilion)" : "var(--line2)"};color:${ready ? "#F2EBDC" : "#666"}" onclick="act.slayBoss('${b.id}')">${ready ? "SLAY BOSS" : b.target ? "$" + b.target + " needed" : "SLAY"}</button>`}
+        </div>
+      </div>`;
+        }).join("");
+
+      // ---------- POMODORO PANEL ----------
+      const P = S.pomo;
+      const flowRunning = !!P.flowStart;
+      const pomoDur = (P.phase === "break" ? (P.breakMin || pomoBreakMin()) : pomoWorkMin()) * 60000;
+      const pomoRem = flowRunning ? Date.now() - P.flowStart : P.endsAt ? Math.max(0, P.endsAt - Date.now()) : (P.paused != null ? P.paused : pomoDur);
+      const pomoRunning = !!P.endsAt, pomoPaused = P.paused != null;
+      const activeSet = P.sets.find(s => s.id === P.active);
+      const modeChips = Object.entries(FOCUS_MODES).map(([k, v]) =>
+        `<button class="ghost" style="padding:4px 10px;font-size:11px;${(P.mode || "pomodoro") === k ? "border-color:var(--gold);color:var(--gold);font-weight:700" : ""}" onclick="act.pomoMode('${k}')">${v.label}</button>`).join("");
+      // ---- energy map data ----
+      const eKey = dayKey(shiftNow());
+      const eRec = (S.energy || {})[eKey] || {};
+      const eHour = new Date().getHours();
+      const slotNow = slotOfHour(eHour);
+      const E_SLOTS = [["m", "🌅 Morning"], ["a", "☀️ Afternoon"], ["e", "🌙 Evening"]];
+      const eGuide = v => v == null ? "" : v >= 4
+        ? `<b style="color:var(--gold)">Peak</b> → new concepts, visual exploration, blank-canvas work`
+        : v === 3
+          ? `<b style="color:var(--blue)">Middle</b> → iterate existing screens, client revisions, refining`
+          : `<b style="color:var(--vermilion)">Trough</b> → invoices, email, file org, exporting assets, collecting references`;
+      const eDays = Object.keys(S.energy || {}).sort().slice(-14);
+      const eAvg = sl => { const vs = eDays.map(k => energyOf(S.energy[k], sl)).filter(v => v != null); return vs.length ? (vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(1) : "–"; };
+      const energyCard = `<div class="card col" style="gap:8px">
+      <div class="section" style="margin:0">🔋 ENERGY MAP</div>
+      <div class="meta">Fills itself from <b>Flowtime</b>: every flow session is filed under the slot it ran in, and the slot's score comes from how long you stayed focused (avg &lt;15m → 1 · 15m → 2 · 30m → 3 · 50m → 4 · 75m+ → 5). Tap a number to override; tap it again to hand it back to Flowtime. 14-day averages on the right.</div>
+      ${E_SLOTS.map(([sl, label]) => {
+        const fl = ((eRec.flow || {})[sl]) || [];
+        const auto = flowScore(fl), val = energyOf(eRec, sl), manual = eRec[sl] != null;
+        const src = manual ? "manual" : auto != null ? "auto · " + fl.length + " session" + (fl.length > 1 ? "s" : "") + " · " + Math.round(fl.reduce((a, b) => a + b, 0) / fl.length) + "m avg" : "";
+        return `
+        <div style="display:flex;align-items:center;gap:8px;${sl === slotNow ? "background:#221E14;border-radius:6px;padding:4px 6px" : "padding:0 6px"}">
+          <span style="flex:0 0 110px;font-weight:600">${label}${sl === slotNow ? " ←" : ""}</span>
+          ${[1, 2, 3, 4, 5].map(v => `<button class="check" style="border-color:var(--gold);background:${val === v ? (manual ? "var(--gold)" : "linear-gradient(135deg,var(--gold),var(--gold-deep))") : "transparent"};${val === v && !manual ? "box-shadow:0 0 12px rgba(242,184,75,.55)" : ""}" onclick="act.rateEnergy('${sl}',${v})">${v}</button>`).join("")}
+          <span class="meta" style="margin-left:auto">avg ${eAvg(sl)}</span>
+        </div>
+        ${val != null ? `<div class="meta" style="margin:-2px 0 4px 122px">${src ? `<span style="opacity:.75">${src}</span> · ` : ""}${eGuide(val)}</div>` : ""}`;
+      }).join("")}
+    </div>`;
+      const pBody =
+        `<div class="raid">
+      <div class="section" style="margin-top:0">⏱ FOCUS — ${P.mode === "flowtime" ? "FLOWTIME · WORK UNTIL FOCUS DROPS · BREAK = WORK ÷ 5 · 1 BUCKET = " + FLOW_BUCKET + "M" : POMO_WORK + " WORK · " + POMO_BREAK + " BREAK"}</div>
+      <div class="row" style="justify-content:center;margin:4px 0 8px">${modeChips}</div>
+      ${(() => { const t = workTotals(); return `<div class="worktags">${[["Today", t.d], ["Week", t.w], ["Month", t.mo]].map(([l, v]) => `<span class="worktag"><small>${l}</small><b>${fmtHM(v)}</b></span>`).join("")}</div>`; })()}
+      <span class="chip" style="${P.phase === "break" ? "background:#1E2417;color:#A8C98C;" : "background:#3A2E10;color:var(--gold);"}">${P.phase === "break" ? "BREAK" : "WORK"} CYCLE</span>
+      <div class="raidclock" id="pomoclock" style="${P.phase === "break" ? "color:var(--green)" : ""}">${fmtClock(pomoRem)}</div>
+      <div class="meta" style="margin:6px 0 10px">${P.phase === "break"
+          ? "Step away. The next bucket waits on the other side."
+          : activeSet ? `Working on: <b style="color:var(--washi)">${esc(activeSet.name)}</b> · bucket ${Math.min(Math.floor(activeSet.done) + 1, activeSet.total)}/${activeSet.total} · a full bucket pays <b style="color:var(--gold)">+${fmtM(bucketMin(activeSet))}m</b> (1/${setBase(activeSet)} of ${activeSet.diff} ${rateMin(activeSet.diff)}m)${activeSet.done >= activeSet.total ? ` · full — overtime grows this set` : ""}`
+            : `No active bucket set — this cycle still counts and pays the ${POMO_NOSET} rate (+${Math.round(DIFF[POMO_NOSET].min * rewardFactor())}m), but no bucket gets ticked.`}</div>
+      <div class="row" style="justify-content:center">
+        ${flowRunning
+          ? `<button class="gold" onclick="act.flowStop()">Stop & Log Session</button><button class="ghost" onclick="act.pomoReset()">Discard</button>`
+          : pomoRunning
+            ? `<button class="ghost" onclick="act.pomoPause()">Pause</button><button class="ghost" onclick="act.pomoReset()">Reset</button>`
+            : `<button class="gold" onclick="act.pomoStart()">${pomoPaused ? "Resume" : P.phase === "break" ? "Start Break (" + (P.breakMin || pomoBreakMin()) + "m)" : P.mode === "flowtime" ? "Start Flow" : "Start Work"}</button>
+            ${pomoPaused ? `<button class="ghost" onclick="act.pomoReset()">Reset</button>` : ""}
+            ${P.phase === "break" ? `<button class="ghost" onclick="act.pomoSkipBreak()">Skip Break</button>` : ""}`}
+      </div>
+      ${flowRunning && (Date.now() - P.flowStart) / 60000 > FLOW_MAX ? `<div style="color:var(--vermilion);font-weight:600;font-size:13px;margin-top:10px">⚠ This flow session has run over ${FLOW_MAX / 60}h. Payout caps at ${FLOW_MAX}m — did you forget to stop the clock?</div>` : ""}
+      ${pomoMsg ? `<div style="color:var(--gold);font-weight:600;font-size:13px;margin-top:10px">${esc(pomoMsg)}</div>` : ""}
+      <div class="meta" style="margin-top:8px">🍅 ${P.cycles || 0} work cycles completed all-time.</div>
+    </div>
+    <div class="card col" style="gap:6px">
+      <div class="section" style="margin:0">🎯 CYCLE GOAL</div>
+      <div class="meta">What will be true when this session ends? Saved to the database with the completed cycle.</div>
+      <textarea id="pnote" placeholder="Goal for this cycle…" onchange="act.pomoNote()">${esc(P.note || "")}</textarea>
+    </div>
+    ` + energyCard + `<div class="section" style="margin-top:14px">🪣 BUCKETS</div>
+    <div class="hint">1 bucket = one ${POMO_WORK}-min Pomodoro cycle, or ${FLOW_BUCKET} min of Flowtime. Planning 6 hours on a task? Add 6 buckets. Buckets fill by <b>real minutes</b>, so a ${POMO_WORK + 22}-min session fills one bucket and leaves the next part-full — nothing is lost, and one long session is worth exactly the same as those minutes split up. When a set tops out the rest spills into your next unfinished set. Sessions of 50m+ pay ×1.1 and 75m+ pay ×1.2 on top. A whole set is worth <b>one</b> difficulty rate — <b style="color:var(--gold)">${Object.entries(DIFF).map(([k, v]) => `${k} ${v.min}m`).join(" · ")}</b> — split across its buckets, so each bucket pays 1/N of it (a 5-bucket Hard set pays 7m per bucket). Tap a bucket to tick/untick it manually (manual ticks don't pay — only finished cycles do).</div>
+    <div class="card col" style="gap:8px">
+      <input id="bn" placeholder="Bucket set name (e.g. Edit client reel)">
+      <div class="row">
+        <input id="bc" type="number" min="1" placeholder="# of buckets">
+        <select id="bd">${Object.keys(DIFF).map(k => `<option ${k === "Hard" ? "selected" : ""}>${k}</option>`).join("")}</select>
+        <select id="bx">${Object.keys(CATS).map(c => `<option ${c === "Editing" ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <button class="gold" onclick="act.addBucketSet()">Add</button>
+      </div>
+    </div>`
+        + (P.sets.length ? P.sets.map(s => `
+    <div class="card col" style="gap:8px;border-left:3px solid ${s.done >= s.total ? "var(--green)" : s.id === P.active ? "var(--gold)" : "var(--line2)"}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-weight:600">${esc(s.name)} <span class="meta">${fmtBk(s.done)}/${s.total}${s.total > setBase(s) ? ` <b style="color:var(--vermilion)">+${s.total - setBase(s)} OT</b>` : ""}${s.done >= s.total ? " · DONE ✓" : ""} · <b style="color:var(--gold)">${s.diff} ${fmtM(bucketMin(s))}m/bucket → ${fmtM(bucketMin(s) * s.total)}m total</b></span></div>
+        ${s.id === P.active ? `<span class="badge" style="background:#3A2E10;color:var(--gold)">ACTIVE</span>` : `<button class="ghost" style="padding:4px 10px;font-size:11px" onclick="act.activeSet('${s.id}')">set active</button>`}
+        <button class="del" onclick="act.delBucketSet('${s.id}')">✕</button>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${Array.from({ length: s.total }, (_, i) => {
+          const f = Math.max(0, Math.min(1, (s.done || 0) - i));
+          const pct = Math.round(f * 100);
+          const bg = f >= 1 ? "var(--gold)" : f > 0
+            ? `linear-gradient(to top, var(--gold) ${pct}%, transparent ${pct}%)` : "transparent";
+          return `<button class="check" title="${f >= 1 ? "full" : pct + "% filled"}" style="border-color:var(--gold);background:${bg}" onclick="act.tickBucket('${s.id}',${i})">${f >= 1 ? "✓" : ""}</button>`;
+        }).join("")}
+      </div>
+    </div>`).join("")
+          : `<div class="card"><div class="meta">No bucket sets yet — add one above, or add a daily task with ⏱ timers and a set appears here automatically.</div></div>`);
+
+      // ---------- REWARDS PANEL ----------
+      const rBody = fatigueBanner
+        + `<div class="card col" style="gap:10px">
+      <div class="section">🎮 GAME TIME PROTOCOL</div>
+      <div style="font-size:28px;font-family:'JetBrains Mono',monospace;color:var(--gold)">${S.bank} min <span style="font-size:13px;color:var(--muted)">in bank</span></div>
+      <div class="meta">Game today: ${S.usedToday} / ${cap} min. Cap = 240 base ${smallSlain || bigSlain ? `+ boss bonuses (${smallSlain}×1% + ${bigSlain}×25%) = <b style="color:var(--gold)">${fmtH(cap)}</b>` : "(slay bosses to raise it)"}. Remaining: ${gameLeft} min.</div>
+      <div class="track"><div class="fill" style="width:${Math.min(100, S.usedToday / cap * 100)}%;${S.usedToday >= cap ? "background:var(--vermilion)" : ""}"></div></div>
+      ${!editingDone
+          ? `<div style="color:var(--vermilion);font-weight:600">🔒 LOCKED — complete an Editing daily or a Raid first. Edit → then play. That's the hook.</div>`
+          : `<div class="row"><input id="gm" type="number" placeholder="Game minutes played"><button class="gold" ${gameLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logGame()">Spend</button></div>`}
+      ${gameLeft <= 0 ? `<div style="color:var(--vermilion)">Game cap hit. Controller down. Timeline open. 🎬</div>` : ""}
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="section">📱 PHONE TIME PROTOCOL</div>
+      <div class="meta">Phone/scrolling today: ${S.phoneToday} / ${PHONE_CAP} min (fixed 2h cap). Spends from the same bank — doomscrolling costs the same currency as gaming. Remaining: ${phoneLeft} min.</div>
+      <div class="track"><div class="fill" style="width:${Math.min(100, S.phoneToday / PHONE_CAP * 100)}%;background:var(--blue);${S.phoneToday >= PHONE_CAP ? "background:var(--vermilion)" : ""}"></div></div>
+      ${!editingDone
+          ? `<div style="color:var(--vermilion);font-weight:600">🔒 LOCKED behind editing too.</div>`
+          : `<div class="row"><input id="pm" type="number" placeholder="Phone minutes used"><button class="gold" style="background:var(--blue)" ${phoneLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logPhone()">Spend</button></div>`}
+      ${phoneLeft <= 0 ? `<div style="color:var(--vermilion)">Phone cap hit. Put it in another room. 📵</div>` : ""}
+    </div>
+    <div class="card col" style="gap:6px">
+      <div class="section">THE ANTICIPATION RULE</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--soft)">
+        The dopamine isn't in the reward — it's in the <b>wait</b>. The chest only unlocks after ALL dailies. The loot is random.
+        Game and phone time are <b>earned, capped, and locked behind editing</b>. Streaks multiply your XP (7d ×1.1 · 14d ×1.2 · 30d ×1.5) —
+        and breaking one should sting. Missing a full day triggers <b>Fatigue</b>: half rewards until you edit again.
+      </div>
+    </div>`;
+
+      // ---------- STATS PANEL ----------
+      const sBody = `<div class="section">SKILL TREE — Zero → Hero</div>`
+        + Object.entries(CATS).map(([c, v]) => {
+          const lv = catLevel(S.catXp[c] || 0), x = S.catXp[c] || 0;
+          const nextAt = 40 * lv * lv, prevAt = 40 * (lv - 1) * (lv - 1);
+          return `<div class="card col" style="gap:5px">
+        <div style="display:flex;justify-content:space-between"><span style="font-weight:600">${v.icon} ${c}</span><span class="mono" style="color:${v.color}">Lv ${lv}</span></div>
+        <div class="track"><div class="fill" style="width:${Math.min(100, (x - prevAt) / (nextAt - prevAt) * 100)}%;background:${v.color}"></div></div>
+      </div>`;
+        }).join("")
+        + (S.history.length ? `<div class="section" style="margin-top:16px">WEEK HISTORY</div>
+    <div class="card col" style="gap:4px">${S.history.map(h => `<div class="meta">📅 ${h.week}: <b style="color:${h.done === h.total ? "var(--green)" : "var(--soft)"}">${h.done}/${h.total}</b> quests</div>`).join("")}</div>` : "")
+        + `<div class="section" style="margin-top:16px">📊 INSIGHTS <span class="meta">· computed from the local database</span></div>`
+        + `<div class="section" style="margin-top:10px;font-size:12px">📅 CONSISTENCY CALENDAR</div>`
+        + buildCalendar()
+        + `<div id="insights"><div class="card"><div class="meta">Crunching the numbers…</div></div></div>`
+        + `<div class="section" style="margin-top:16px">🧾 LEDGER <span class="meta">· latest from the local database</span></div>
+    <div class="card col" style="gap:4px" id="ledger"><div class="meta">Loading…</div></div>
+    ${cloudCard()}
+    <div class="card col" style="gap:10px;margin-top:16px;border:1px solid #3A2E20">
+      <div class="section">🗄 LOCAL DATABASE</div>
+      <div class="meta">All stats, every transaction, every task, client, journal entry and pomodoro cycle live in a local IndexedDB on this device. Export as JSON (re-importable backup) or as CSV — one file per table, ready for Excel / Google Sheets.</div>
+      <div class="row">
+        <button class="gold" style="flex:1" onclick="act.exportDB()">Export Database</button>
+        <button class="ghost" style="flex:1" onclick="act.importDBClick()">Import Database</button>
+      </div>
+      <button class="ghost" onclick="act.exportCSV()">Export CSV — one file per table (Excel / Sheets)</button>
+      ${wipeArmed
+          ? `<div class="meta" style="color:var(--vermilion);margin-top:6px">This erases every stat, transaction, task, habit, client, journal entry, pomodoro cycle and calendar mark on this device${cloudUser ? " and in the cloud (your other devices start fresh too)" : ""}. It cannot be undone — only an exported JSON can bring it back.</div>
+      <div class="row">
+        <button class="gold" style="flex:1;background:var(--vermilion);color:#F2EBDC" onclick="act.wipeAll()">YES — ERASE EVERYTHING</button>
+        <button class="ghost" style="flex:1" onclick="act.wipeCancel()">Cancel</button>
+      </div>`
+          : `<button class="ghost" style="margin-top:6px;border-color:#4A2E2E;color:#C08A8A" onclick="act.wipeArm()">Wipe everything — start fresh</button>`}
+      ${dbMsg ? `<div style="font-size:13px">${esc(dbMsg)}</div>` : ""}
+    </div>`;
+
+      document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="seal">${rank.r}</div>
+        <div style="flex:1">
+          <div class="syslabel">THE SYSTEM ・ 実生活</div>
+          <div class="pname">SYED — ${rank.t}</div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <span class="mono">LV ${level}</span><span class="mono" style="color:var(--muted)">${cur}/${need} XP</span>
+          </div>
+          <div class="track"><div class="fill" style="width:${Math.min(100, cur / need * 100)}%"></div></div>
+        </div>
+      </div>
+      <div class="hstats">
+        <span>🔥 ${S.streak}d${mult > 1 ? ` <span class="badge" style="background:#3A2E10;color:var(--gold)">×${mult} XP</span>` : ""}</span>
+        <span>🛡 ${S.shields}</span>
+        <span>🎮 ${S.bank}m</span>
+        <span>⏱ cap ${fmtH(cap)}</span>
+        <span>🍅 ${P.cycles || 0}</span>
+        <span>💵 $${S.earnings}</span>
+        ${S.fatigued ? `<span class="badge" style="background:#3A1A1A;color:#E08C8C">😮‍💨 FATIGUED</span>` : ""}
+      </div>
+    </div>
+    <div class="tabs">
+      ${[["quests", "Daily"], ["campaign", "Campaign"], ["pomodoro", "Pomodoro"], ["rewards", "Rewards"], ["stats", "Stats"]]
+          .map(([k, l]) => `<button class="tab ${tab === k ? "on" : ""}" onclick="act.tab('${k}')">${l}</button>`).join("")}
+    </div>
+    <div class="wrap">
+      <section class="panel p-quests ${tab === "quests" ? "on" : ""}"><div class="deskhead">DAILY QUESTS ・ 日課</div>${qBody}</section>
+      <section class="panel p-campaign ${tab === "campaign" ? "on" : ""}"><div class="deskhead">CAMPAIGN ・ 遠征</div>${cBody}</section>
+      <section class="panel p-pomodoro ${tab === "pomodoro" ? "on" : ""}"><div class="deskhead">POMODORO ・ 集中</div>${pBody}</section>
+      <section class="panel p-side ${tab === "rewards" || tab === "stats" ? "on" : ""}">
+        <div class="sub sub-rewards ${tab === "rewards" ? "on" : ""}"><div class="deskhead">REWARDS ・ 報酬</div>${rBody}</div>
+        <div class="sub sub-stats ${tab === "stats" ? "on" : ""}"><div class="deskhead">STATS ・ 記録</div>${sBody}</div>
+      </section>
+    </div>`;
+      lockMsg = "";
+      ensureTick();
+      refreshDbViews();
+    }
+    let lastW = window.innerWidth;
+    window.addEventListener("resize", () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; render(); });
+
+    // ================= CLOUD SYNC (Supabase) =================
+    // The browser copy stays the working copy: the app opens instantly and works
+    // offline. Signed in, it pulls the newest cloud save on open and whenever the
+    // app comes back into view, and pushes ~1.5s after every change.
+    //   system_state — one row per user: the whole state, stamped with S._rev
+    //   system_log   — one row per log record (transactions, tasks, pomodoro,
+    //                  journal), deduped across devices by its cid
+    // Both tables are locked to their owner by row level security
+    // (see supabase-setup.sql), so the public key below is safe in the page.
+    const SB_URL = "https://mbncpbuypmtalevnpicq.supabase.co";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ibmNwYnV5cG10YWxldm5waWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNTY4NTYsImV4cCI6MjEwNzgzMjg1Nn0.7pNVwWj_Lr0fVSE-b3xwwdV43MHRYnSiEwl26zPFwo0";
+    const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+    const SYNC_REV = "lifesys-synced-rev", LOG_CURSOR = "lifesys-log-cursor";
+    const LOG_STORES = ["transactions", "tasks", "pomodoro", "journal"];
+    let cloudUser = null, cloudMsg = "", cloudBusy = false, lastSync = null, pushTimer = null, syncing = false, syncAgain = false;
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+    function newCid() { return window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
+    function localState() { try { return JSON.parse(lsGet(KEY) || "null"); } catch (e) { return null; } }
+    function schedulePush() {
+      if (!sb || !cloudUser) return;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => { pushTimer = null; sync(); }, 1500);
+    }
+    async function sync() {
+      if (!sb || !cloudUser) return;
+      if (syncing) { syncAgain = true; return; }
+      syncing = true;
+      try {
+        await syncState();
+        const got = await pullLogs();
+        await pushLogs();
+        lastSync = new Date(); cloudMsg = "";
+        if (got && S) loadWorkTotals();
+      } catch (e) {
+        cloudMsg = navigator.onLine ? "⚠ Sync failed: " + (e.message || e) : "Offline — changes will sync when you're back online.";
+      }
+      syncing = false;
+      if (S) refreshCloudCard();
+      if (syncAgain) { syncAgain = false; sync(); }
+    }
+    async function syncState() {
+      const { data, error } = await sb.from("system_state").select("state").maybeSingle();
+      if (error) throw error;
+      const first = lsGet(SYNC_REV) == null, synced = +lsGet(SYNC_REV) || 0;
+      const local = localState(), lrev = (local && local._rev) || 0;
+      const remote = data && data.state, rrev = remote ? (remote._rev || 0) : -1;
+      let take = false;
+      if (rrev > synced) {
+        // another device saved since this one last synced
+        if (first && lrev) {
+          take = confirm("Cloud save: " + (remote.xp || 0) + " XP, last changed " + new Date(rrev).toLocaleString() + ".\n" +
+            "This device: " + (local.xp || 0) + " XP, last changed " + new Date(lrev).toLocaleString() + ".\n\n" +
+            "OK = load the cloud save on this device (this device's data is replaced)\n" +
+            "Cancel = keep this device's data and upload it to the cloud");
+        } else take = !(lrev > synced && lrev > rrev);   // keep ours only if we changed it, and later
+      }
+      if (take) {
+        lsSet(KEY, JSON.stringify(remote)); lsSet(SYNC_REV, String(rrev));
+        if (S) { load(); render(); }
+        return;
+      }
+      if (local && (rrev < 0 || lrev > synced || first)) {
+        const r = await sb.from("system_state").upsert({ user_id: cloudUser.id, state: local, updated_at: new Date().toISOString() });
+        if (r.error) throw r.error;
+        lsSet(SYNC_REV, String(lrev));
+      }
+    }
+    async function pullLogs() {
+      let cur = +lsGet(LOG_CURSOR) || 0, got = 0;
+      const have = {};
+      for (const st of LOG_STORES) have[st] = new Set((await dbGetAll(st)).map(r => r.cid).filter(Boolean));
+      for (;;) {
+        const { data, error } = await sb.from("system_log").select("id,store,cid,data").gt("id", cur).order("id").limit(1000);
+        if (error) throw error;
+        const fresh = {};
+        data.forEach(r => {
+          cur = Math.max(cur, r.id);
+          if (!have[r.store] || have[r.store].has(r.cid)) return;
+          have[r.store].add(r.cid);
+          const row = Object.assign({}, r.data, { cid: r.cid, sy: 1 }); delete row.id;
+          (fresh[r.store] = fresh[r.store] || []).push(row); got++;
+        });
+        for (const st in fresh) await dbPutMany(st, fresh[st]);
+        lsSet(LOG_CURSOR, String(cur));
+        if (data.length < 1000) break;
+      }
+      return got;
+    }
+    async function pushLogs() {
+      for (const st of LOG_STORES) {
+        const rows = (await dbGetAll(st)).filter(r => !r.sy);
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          chunk.forEach(r => { if (!r.cid) r.cid = newCid(); });
+          const { error } = await sb.from("system_log").upsert(chunk.map(r => {
+            const data = Object.assign({}, r); delete data.id; delete data.sy;
+            return { user_id: cloudUser.id, store: st, cid: r.cid, data };
+          }), { onConflict: "user_id,cid", ignoreDuplicates: true });
+          if (error) throw error;
+          chunk.forEach(r => { r.sy = 1; });
+          await dbPutMany(st, chunk);
+        }
+      }
+    }
+    // Import and wipe replace the log history, so the cloud copy is cleared to match.
+    async function cloudResetLogs() {
+      const { error } = await sb.from("system_log").delete().eq("user_id", cloudUser.id);
+      if (error) throw error;
+      lsSet(LOG_CURSOR, "0");
+    }
+    function cloudCard() {
+      const inner = !sb
+        ? `<div class="meta">Cloud sync couldn't load (offline?). Everything still saves on this device.</div>`
+        : cloudUser
+          ? `<div class="meta">Signed in as <b style="color:var(--washi)">${esc(cloudUser.email || "")}</b>. This device syncs with your other devices automatically.${lastSync ? ` Last synced ${lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : ""}</div>
+      <div class="row">
+        <button class="gold" style="flex:1" onclick="act.cloudSync()">Sync now</button>
+        <button class="ghost" style="flex:1" onclick="act.cloudOut()">Sign out</button>
+      </div>`
+          : `<div class="meta">Sign in to keep this device and your phone/PC on the same data. Use the same email and password on every device.</div>
+      <input id="cEmail" type="email" autocomplete="email" placeholder="Email">
+      <input id="cPass" type="password" autocomplete="current-password" placeholder="Password (6+ characters)">
+      <div class="row">
+        <button class="gold" style="flex:1" ${cloudBusy ? "disabled" : ""} onclick="act.cloudIn(false)">Sign in</button>
+        <button class="ghost" style="flex:1" ${cloudBusy ? "disabled" : ""} onclick="act.cloudIn(true)">Create account</button>
+      </div>`;
+      return `<div class="card col" style="gap:10px;margin-top:16px;border:1px solid #3A2E20" id="cloudcard">
+      <div class="section">☁️ CLOUD SYNC</div>
+      ${inner}
+      ${cloudMsg ? `<div style="font-size:13px">${esc(cloudMsg)}</div>` : ""}
+    </div>`;
+    }
+    function refreshCloudCard() {
+      const el = document.getElementById("cloudcard");
+      if (el) el.outerHTML = cloudCard();
+    }
+    Object.assign(act, {
+      async cloudIn(create) {
+        const em = (document.getElementById("cEmail").value || "").trim(), pw = document.getElementById("cPass").value || "";
+        if (!em || pw.length < 6) { cloudMsg = "Enter your email and a password of at least 6 characters."; refreshCloudCard(); return; }
+        cloudBusy = true; cloudMsg = create ? "Creating account…" : "Signing in…"; refreshCloudCard();
+        const r = create
+          ? await sb.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.href.split("#")[0] } })
+          : await sb.auth.signInWithPassword({ email: em, password: pw });
+        cloudBusy = false;
+        if (r.error) { cloudMsg = "❌ " + r.error.message; refreshCloudCard(); return; }
+        if (create && !r.data.session) { cloudMsg = "📧 Check your email and tap the confirmation link, then come back and sign in."; refreshCloudCard(); return; }
+        cloudUser = r.data.user; cloudMsg = "Syncing…"; refreshCloudCard();
+        sync();
+      },
+      async cloudOut() {
+        await sb.auth.signOut();
+        cloudUser = null; cloudMsg = "Signed out. This device keeps working on its own copy."; refreshCloudCard();
+      },
+      cloudSync() { cloudMsg = "Syncing…"; refreshCloudCard(); sync(); },
+    });
+    if (sb) {
+      sb.auth.onAuthStateChange((ev, session) => {
+        const was = cloudUser && cloudUser.id;
+        cloudUser = session ? session.user : null;
+        if (cloudUser && cloudUser.id !== was && S) sync();
+        if (S) refreshCloudCard();
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") sync();
+        else if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; sync(); }
+      });
+      window.addEventListener("online", () => sync());
+      setInterval(() => { if (document.visibilityState === "visible") sync(); }, 60000);
+    }
+
+    openDB().then(async () => {
+      // pull the newest cloud save BEFORE the day-rollover logic in load() runs on stale data
+      if (sb) {
+        try {
+          const { data } = await sb.auth.getSession();
+          cloudUser = data.session ? data.session.user : null;
+          if (cloudUser && navigator.onLine) await Promise.race([syncState(), new Promise(r => setTimeout(r, 4000))]);
+        } catch (e) { }
+      }
+      load(); render(); loadWorkTotals();
+      if (cloudUser) sync();
+    });
+  </script>
+</body>
+
+</html>
