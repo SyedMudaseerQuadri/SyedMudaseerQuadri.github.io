@@ -1375,8 +1375,14 @@
     /* ================================================= PROCESS */
     .principles {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 18px;
+    }
+
+    @media (max-width: 1100px) {
+      .principles {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
 
     @media (max-width: 860px) {
@@ -2442,6 +2448,16 @@
               An engineering background means I think in constraints. I'd
               rather ship a feasible v1 this sprint than a perfect v3 that
               never leaves the file.
+            </p>
+          </div>
+          <div class="principle reveal d3">
+            <span class="n" aria-hidden="true">四</span>
+            <h4>Then I build and deploy it</h4>
+            <p>
+              No developer? No problem. Once the design is signed off, I
+              vibe code it into a working site with AI-assisted tools and
+              deploy it live for you, so you get one person from first sketch
+              to launch.
             </p>
           </div>
         </div>
