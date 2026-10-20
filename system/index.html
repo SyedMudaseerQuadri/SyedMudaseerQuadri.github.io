@@ -662,6 +662,16 @@
     let subOpen = {};
     let S = null, tab = "quests", rolling = false, lootMsg = null, raidTimer = null, raidMsg = "", pomoTimer = null, pomoMsg = "", dbMsg = "", calMonth = 0, lockMsg = "", wipeArmed = false;
     const KEY = "lifesys-local-v2";
+    // Which device started a running timer. The device that started it gets the
+    // first claim on finishing it, so two open copies of the System can't both
+    // log the same session.
+    const DEVICE = (() => {
+      try {
+        let d = localStorage.getItem("lifesys-device");
+        if (!d) { d = "dv" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); localStorage.setItem("lifesys-device", d); }
+        return d;
+      } catch (e) { return "dv" + Math.random().toString(36).slice(2); }
+    })();
 
     // ================= LOCAL DATABASE (IndexedDB) =================
     // Stores: kv (current state snapshot) · transactions (every XP/min/$ event)
@@ -720,7 +730,8 @@
       const led = document.getElementById("ledger");
       const ins = document.getElementById("insights");
       if (!led && !ins) return;
-      const [tx, pomo] = await Promise.all([dbGetAll("transactions"), dbGetAll("pomodoro")]);
+      const [txAll, pomoAll] = await Promise.all([dbGetAll("transactions"), dbGetAll("pomodoro")]);
+      const tx = uniqRows(txAll, txKey), pomo = uniqRows(pomoAll, pomoKey);
       if (led) {
         const last = tx.slice(-12).reverse();
         led.innerHTML = last.length
@@ -734,14 +745,43 @@
     // boot and topped up live as sessions finish. Old records predate `worked`
     // and were always a full 45-min cycle.
     let workByDay = null;
+    // The same session can reach the log twice — two devices (or two tabs)
+    // finishing one timer. Rows sharing a cid are one record. Duplicates logged
+    // before sessions carried an id are caught by overlap: an identical session
+    // that ends inside the previous one's own length can't have been real work.
+    function uniqRows(rows, keyOf) {
+      const seen = new Set(), last = {}, out = [];
+      rows.slice().sort((a, b) => String(a.ts).localeCompare(String(b.ts))).forEach(r => {
+        if (!r) return;
+        if (r.cid) { if (seen.has(r.cid)) return; seen.add(r.cid); }
+        const k = keyOf(r);
+        if (k) {
+          const t = +new Date(r.ts);
+          if (last[k.key] != null && t - last[k.key] < k.min * 60000 * 0.9) return;
+          last[k.key] = t;
+        }
+        out.push(r);
+      });
+      return out;
+    }
+    function pomoKey(r) {
+      const w = r.worked != null ? r.worked : POMO_WORK;
+      return { key: (r.mode || "pomodoro") + "|" + (r.set || "") + "|" + w, min: w };
+    }
+    function txKey(t) {
+      if (t.type === "raid") return { key: "raid|" + t.label, min: RAID_MIN };
+      if (t.type !== "pomodoro") return null;
+      const m = /\((\d+)m\)/.exec(t.label || "");
+      return { key: "pomo|" + t.label + "|" + t.xp + "|" + t.min, min: t.worked || (m ? +m[1] : POMO_WORK) };
+    }
     async function loadWorkTotals() {
-      const rows = await dbGetAll("pomodoro"), m = {};
+      const rows = uniqRows(await dbGetAll("pomodoro"), pomoKey), m = {};
       rows.forEach(r => {
         if (!r || !r.ts) return;
         const k = dayKey(shiftNow(new Date(r.ts)));
         m[k] = (m[k] || 0) + (r.worked != null ? r.worked : POMO_WORK);
       });
-      workByDay = m; render();
+      workByDay = m; render(true);
     }
     function workTotals() {
       const now = shiftNow(), tk = dayKey(now), mk = tk.slice(0, 7);
@@ -762,10 +802,13 @@
       const xpBy = {}, earnBy = {}, spendBy = {}, cycBy = {};
       tx.forEach(t => {
         const k = dayKey(shiftNow(new Date(t.ts)));
-        if (t.xp > 0) xpBy[k] = (xpBy[k] || 0) + t.xp;
-        if (t.min > 0) earnBy[k] = (earnBy[k] || 0) + t.min;
-        if (t.min < 0) spendBy[k] = (spendBy[k] || 0) - t.min;
+        // undo rows carry negative XP/minutes — they cancel the tick they undo;
+        // only real game/phone spending counts as "spent"
+        if (t.xp) xpBy[k] = (xpBy[k] || 0) + t.xp;
+        if (t.type === "spend") { if (t.min) spendBy[k] = (spendBy[k] || 0) - t.min; }
+        else if (t.min) earnBy[k] = (earnBy[k] || 0) + t.min;
       });
+      for (const mp of [xpBy, earnBy]) for (const k in mp) mp[k] = Math.max(0, mp[k]);
       // A cycle is a bucket of real work, not a session: one unbroken 3-hour
       // flow is 3 cycles, not 1. Old rows without minutes were one full cycle.
       pomo.forEach(p => {
@@ -926,6 +969,11 @@
       return 0.35 + 0.65 * Math.min(1, (sc - CROSS_PCT) / span);
     }
     function isCross(mk) { return crossAlpha(mk) > 0; }
+    // The streak moves at most once per System day. Clearing every daily credits
+    // it; un-ticking one that day takes the credit back, so tick/untick/tick
+    // can't farm it.
+    function creditStreak() { if (S.streakDay === S.day) return; S.streak++; S.streakDay = S.day; }
+    function uncreditStreak() { if (S.streakDay !== S.day) return; S.streak = Math.max(0, S.streak - 1); S.streakDay = null; }
     function load() {
       try {
         const raw = localStorage.getItem(KEY);
@@ -965,11 +1013,18 @@
       const today = sysDay();
       if (S.day !== today) {
         const gap = Math.round((new Date(today) - new Date(S.day)) / 86400000);
-        const missed = S.chestOpened ? gap - 1 : gap;
+        // Yesterday counts if every daily got done — whether or not the chest was
+        // opened. Saves from before streakDay fall back to the dailies themselves.
+        const cleared = S.streakDay != null ? S.streakDay === S.day
+          : S.chestOpened || (S.dailies.length > 0 && S.dailies.every(d => d.done));
+        const missed = cleared ? gap - 1 : gap;
         if (missed > 0) { if (S.shields > 0) S.shields--; else S.streak = 0; }
         S.fatigued = S.everActive === true && !S.anyToday;   // fatigue only after you've actually used the System
         S.day = today; S.dailies.forEach(d => { d.done = false; delete d.earned; delete d.earnedMin; (d.subs || []).forEach(x => { x.done = false; }); });
-        S.habits.forEach(h => { h.done = false; delete h.earnedMin; });
+        S.habits.forEach(h => { h.done = false; delete h.earned; delete h.earnedMin; });
+        // a daily's bucket set empties with the daily, instead of staying DONE
+        // forever and logging tomorrow's work as overtime
+        S.pomo.sets.forEach(s => { if (s.taskId && S.dailies.some(d => d.id === s.taskId)) { s.done = 0; s.total = setBase(s); } });
         S.tomorrow.forEach(q => pushDaily(q));   // quests planned last night join today's list
         S.tomorrow = [];
         S.usedToday = 0; S.phoneToday = 0; S.chestOpened = false; S.raidToday = false; S.anyToday = false;
@@ -986,14 +1041,19 @@
         S.weekly.forEach(w => { w.done = false; delete w.earned; delete w.earnedMin; });
         S.weekStart = thisMonday;
       }
-      if (S.raidStart && Date.now() - S.raidStart >= RAID_MIN * 60000) { finishRaidCore(); }
-      if (S.pomo.endsAt && Date.now() >= S.pomo.endsAt) { finishPomoCore(false); }
+      // A timer that ran out while the app was closed is finished by the ticker
+      // (ensureTick), which first checks it wasn't already finished on another device.
       stampToday();
       save();
     }
     // Add a daily quest. Timers create a matching bucket set: t buckets = t work
     // cycles, carrying the task's difficulty so each cycle pays the right rate.
     // Steps live on today's dailies and on quests planned for tomorrow alike.
+    // Deleting (or moving) a daily takes its bucket set with it.
+    function dropSetsOf(taskId) {
+      S.pomo.sets = S.pomo.sets.filter(s => s.taskId !== taskId);
+      if (S.pomo.active && !S.pomo.sets.some(s => s.id === S.pomo.active)) S.pomo.active = S.pomo.sets[0] ? S.pomo.sets[0].id : null;
+    }
     function findQuest(id) { return S.dailies.find(x => x.id === id) || S.tomorrow.find(x => x.id === id); }
     function pushDaily(q) {
       const id = Date.now() + "" + Math.floor(Math.random() * 1000);
@@ -1064,21 +1124,22 @@
     }
 
     function finishRaidCore() {
-      S.raidStart = null; S.raidToday = true; S.anyToday = true; S.everActive = true;
+      const rcid = S.raidStart ? "tx-raid-" + S.raidStart : undefined;
+      S.raidStart = null; S.raidDev = null; S.raidToday = true; S.anyToday = true; S.everActive = true;
       const mult = streakMult();
       const d = S.dailies.find(x => x.cat === "Editing" && !x.done);
       if (d) {
         const xp = rateXp(d.diff), min = dailyCheckMin(d);
         d.done = true; d.earned = xp; d.earnedMin = min;
         S.xp += xp; S.bank += min; S.catXp.Editing = (S.catXp.Editing || 0) + xp;
-        if (S.dailies.every(x => x.done)) S.streak++;
+        if (S.dailies.every(x => x.done)) creditStreak();
         raidMsg = "⚔️ RAID CLEARED — editing daily auto-completed. +" + xp + " XP, +" + min + "m game time.";
-        logTx("raid", "Raid cleared: " + d.name, { xp, min, cat: "Editing" });
+        logTx("raid", "Raid cleared: " + d.name, { xp, min, cat: "Editing", cid: rcid });
       } else {
         const xp = Math.round(50 * mult), min = Math.round(25 * rewardFactor());
         S.xp += xp; S.bank += min; S.catXp.Editing = (S.catXp.Editing || 0) + xp;
         raidMsg = "⚔️ RAID CLEARED — +" + xp + " XP, +" + min + "m game time. Game time unlocked.";
-        logTx("raid", "Raid cleared", { xp, min, cat: "Editing" });
+        logTx("raid", "Raid cleared", { xp, min, cat: "Editing", cid: rcid });
       }
       clearFatigueByEditing();
       stampToday();
@@ -1167,13 +1228,14 @@
             " rate applies: " + pay + "." + bonusNote + capNote + energyNote + " Break time.";
         }
 
-        dbPut("pomodoro", { ts: new Date().toISOString(), mode: P.mode || "pomodoro", worked, fill: Math.round(fill * 1000) / 1000, mult, capped: capped || null, set: set ? set.name : null, bucket: set ? fmtBk(set.done) + "/" + set.total : null, diff, cat, note: P.note || "", xp: xpGain, min: bonus });
+        const sid = P.sid; P.sid = null;
+        dbPut("pomodoro", { cid: sid ? "pomo-" + sid : undefined, ts: new Date().toISOString(), mode: P.mode || "pomodoro", worked, fill: Math.round(fill * 1000) / 1000, mult, capped: capped || null, set: set ? set.name : null, bucket: set ? fmtBk(set.done) + "/" + set.total : null, diff, cat, note: P.note || "", xp: xpGain, min: bonus });
         if (workByDay) { const wk = dayKey(shiftNow()); workByDay[wk] = (workByDay[wk] || 0) + worked; }
-        logTx("pomodoro", modeTag + (set ? " — " + set.name : "") + " · " + fmtBk(fill) + " bucket · " + diff, { xp: xpGain, min: bonus, cat, note: P.note || "" });
+        logTx("pomodoro", modeTag + (set ? " — " + set.name : "") + " · " + fmtBk(fill) + " bucket · " + diff, { xp: xpGain, min: bonus, cat, note: P.note || "", worked, cid: sid ? "tx-pomo-" + sid : undefined });
         P.note = "";
         P.phase = "break";
         P.breakMin = pomoBreakMin(worked);
-        if (autoBreak) P.endsAt = Date.now() + P.breakMin * 60000;
+        if (autoBreak) { P.endsAt = Date.now() + P.breakMin * 60000; P.dev = DEVICE; }
       } else {
         P.phase = "work";
         P.breakMin = null;
@@ -1225,8 +1287,8 @@
         const d = S.dailies.find(x => x.id === id); if (!d) return;
         if (isLocked(d)) return refuse(d, d.name);
         if (d.done) bankCredit("daily");   // keep the credit on the list it is leaving
-        S.dailies = S.dailies.filter(x => x.id !== id);
-        S.habits.push({ id: "h" + Date.now(), name: d.name, cat: d.cat, done: !!d.done });
+        S.dailies = S.dailies.filter(x => x.id !== id); dropSetsOf(id);
+        S.habits.push(Object.assign({ id: "h" + Date.now(), name: d.name, cat: d.cat, done: !!d.done }, d.done ? { earned: d.earned, earnedMin: d.earnedMin } : {}));
         logTx("task", "Moved to habits: " + d.name);
         stampToday(); save(); render();
       },
@@ -1234,27 +1296,28 @@
         const h = S.habits.find(x => x.id === id); if (!h) return;
         if (h.done) bankCredit("habit");   // keep the credit on the list it is leaving
         S.habits = S.habits.filter(x => x.id !== id);
-        S.dailies.push({ id: "d" + Date.now(), name: h.name, cat: h.cat, diff: "Easy", timers: 0, done: !!h.done });
+        S.dailies.push(Object.assign({ id: "d" + Date.now(), name: h.name, cat: h.cat, diff: "Easy", timers: 0, done: !!h.done }, h.done ? { earned: h.earned, earnedMin: h.earnedMin } : {}));
         logTx("task", "Moved to dailies: " + h.name);
         stampToday(); save(); render();
       },
       toggleDaily(id) {
         const d = S.dailies.find(x => x.id === id);
+        if (!d) return;
         if (!d.done) {
           const xp = Math.round(DIFF[d.diff].xp * streakMult());
           const min = dailyCheckMin(d);
-          const othersDone = S.dailies.filter(x => x.id !== id).every(x => x.done);
           d.done = true; d.earned = xp; d.earnedMin = min;
           S.xp += xp; S.bank += min; S.catXp[d.cat] = (S.catXp[d.cat] || 0) + xp;
           S.anyToday = true; S.everActive = true;
           if (d.cat === "Editing") clearFatigueByEditing();
-          if (othersDone) S.streak++;
+          if (S.dailies.every(x => x.done)) creditStreak();
           logTx("daily", "Daily done: " + d.name, { xp, min, cat: d.cat });
         } else {
           logTx("daily", "Daily undone: " + d.name, { xp: -(d.earned || 0), min: -(d.earnedMin || 0), cat: d.cat });
           S.xp = Math.max(0, S.xp - (d.earned || 0)); S.bank = Math.max(0, S.bank - (d.earnedMin || 0));
           S.catXp[d.cat] = Math.max(0, (S.catXp[d.cat] || 0) - (d.earned || 0));
           d.done = false; delete d.earned; delete d.earnedMin;
+          uncreditStreak();
         }
         stampToday(); save(); render();
       },
@@ -1301,7 +1364,7 @@
         if (isLocked(d)) return refuse(d, d.name);
         logTx("task", "Task deleted: " + d.name + (d.done ? " (completed \u2014 progress kept)" : ""));
         if (d.done) bankCredit("daily");
-        S.dailies = S.dailies.filter(x => x.id !== id); stampToday(); save(); render();
+        S.dailies = S.dailies.filter(x => x.id !== id); dropSetsOf(id); stampToday(); save(); render();
       },
       lockDaily(id) {
         const d = S.dailies.find(x => x.id === id);
@@ -1409,11 +1472,11 @@
         S.pipe[k] = Math.max(0, (S.pipe[k] || 0) + delta);
         save(); render();
       },
-      startRaid() { if (S.raidStart) return; raidMsg = ""; S.raidStart = Date.now(); save(); render(); },
+      startRaid() { if (S.raidStart) return; raidMsg = ""; S.raidStart = Date.now(); S.raidDev = DEVICE; save(); render(); },
       abandonRaid() { S.raidStart = null; raidMsg = "Raid abandoned. No loot for cowards — try again."; save(); render(); },
       finishRaid() { finishRaidCore(); save(); render(); },
       openChest() {
-        if (rolling || S.chestOpened || !S.dailies.every(d => d.done)) return;
+        if (rolling || S.chestOpened || !S.dailies.length || !S.dailies.every(d => d.done)) return;
         rolling = true; lootMsg = null; render();
         setTimeout(() => {
           const l = rollLoot(); S.chestOpened = true; l.apply(S);
@@ -1429,11 +1492,13 @@
         pomoMsg = "";
         if (P.phase === "work" && P.mode === "flowtime" && P.paused == null) {
           P.flowStart = Date.now();   // open-ended: count up until focus drops
+          P.sid = newCid(); P.dev = DEVICE;
           save(); render(); return;
         }
+        if (P.phase === "work" && P.paused == null) P.sid = newCid();   // a fresh session, not a resume
         const dur = (P.phase === "break" ? (P.breakMin || pomoBreakMin()) : pomoWorkMin()) * 60000;
         P.endsAt = Date.now() + (P.paused != null ? P.paused : dur);
-        P.paused = null;
+        P.paused = null; P.dev = DEVICE;
         save(); render();
       },
       flowStop() {
@@ -1459,7 +1524,7 @@
         save(); render();
       },
       pomoPause() { const P = S.pomo; if (!P.endsAt) return; P.paused = Math.max(0, P.endsAt - Date.now()); P.endsAt = null; save(); render(); },
-      pomoReset() { const P = S.pomo; P.endsAt = null; P.paused = null; P.flowStart = null; P.breakMin = null; P.phase = "work"; pomoMsg = ""; save(); render(); },
+      pomoReset() { const P = S.pomo; P.endsAt = null; P.paused = null; P.flowStart = null; P.breakMin = null; P.phase = "work"; P.sid = null; pomoMsg = ""; save(); render(); },
       pomoSkipBreak() { const P = S.pomo; if (P.phase !== "break") return; P.phase = "work"; P.endsAt = null; P.paused = null; pomoMsg = "Break skipped — back on the grind."; save(); render(); },
       finishPomo() { finishPomoCore(true); save(); render(); },
       pomoNote() { const el = document.getElementById("pnote"); if (el) { S.pomo.note = el.value; save(); } },
@@ -1472,7 +1537,7 @@
         S.pomo.sets.push({ id, name: n, total, base: total, done: 0, diff, cat });
         if (!S.pomo.active) S.pomo.active = id;
         dbPut("tasks", { ts: new Date().toISOString(), kind: "bucket-set", name: n, buckets: total, diff, cat });
-        logTx("bucket", "Bucket set added: " + n + " (" + total + " × " + diff + " = " + total * DIFF[diff].min + "m)");
+        logTx("bucket", "Bucket set added: " + n + " (" + total + " buckets · " + diff + " · whole set pays " + DIFF[diff].min + "m)");
         save(); render();
       },
       delBucketSet(id) {
@@ -1609,7 +1674,10 @@
         raidTimer = setInterval(() => {
           if (!S.raidStart) { clearInterval(raidTimer); raidTimer = null; return; }
           const rem = RAID_MIN * 60000 - (Date.now() - S.raidStart);
-          if (rem <= 0) { clearInterval(raidTimer); raidTimer = null; act.finishRaid(); }
+          if (rem <= 0) {
+            if (!timerMayFinish(S.raidDev, S.raidStart + RAID_MIN * 60000)) return;
+            clearInterval(raidTimer); raidTimer = null; finishRaidCore(); save(); render(true);
+          }
           else { const el = document.getElementById("raidclock"); if (el) el.textContent = fmtClock(rem); }
         }, 1000);
       }
@@ -1621,14 +1689,40 @@
           const el = document.getElementById("pomoclock");
           if (P2.flowStart) { if (el) el.textContent = fmtClock(Date.now() - P2.flowStart); return; }
           const rem = P2.endsAt - Date.now();
-          if (rem <= 0) { clearInterval(pomoTimer); pomoTimer = null; act.finishPomo(); }
+          if (rem <= 0) {
+            if (!timerMayFinish(P2.dev, P2.endsAt)) { if (el) el.textContent = "00:00"; return; }
+            // ran out while the app was closed: log it, but don't start a break that's long over
+            const fresh = Date.now() - P2.endsAt < 60000;
+            clearInterval(pomoTimer); pomoTimer = null; finishPomoCore(fresh); save(); render(true);
+          }
           else if (el) el.textContent = fmtClock(rem);
         }, 1000);
       }
       if (!S.pomo.endsAt && !S.pomo.flowStart && pomoTimer) { clearInterval(pomoTimer); pomoTimer = null; }
     }
 
-    function render() {
+    // Background re-renders (sync, finished timers, another tab) must not wipe
+    // a half-typed quest or steal focus. User actions render hard, as before.
+    function snapInputs() {
+      const vals = {};
+      document.querySelectorAll("#app input[id], #app textarea[id], #app select[id]").forEach(el => {
+        if (el.type !== "password" && el.type !== "file") vals[el.id] = el.value;
+      });
+      const a = document.activeElement, inApp = a && a.id && a.closest && a.closest("#app");
+      let sel = null;
+      try { if (inApp && typeof a.selectionStart === "number") sel = [a.selectionStart, a.selectionEnd]; } catch (e) { }
+      return { vals, focus: inApp ? a.id : null, sel, y: window.scrollY };
+    }
+    function restoreInputs(k) {
+      for (const id in k.vals) { const el = document.getElementById(id); if (el && el.value !== k.vals[id]) el.value = k.vals[id]; }
+      if (k.focus) {
+        const el = document.getElementById(k.focus);
+        if (el) { el.focus({ preventScroll: true }); if (k.sel) { try { el.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) { } } }
+      }
+      window.scrollTo(0, k.y);
+    }
+    function render(soft) {
+      const keep = soft && S ? snapInputs() : null;
       const { level, cur, need } = levelInfo(S.xp);
       const rank = rankOf(level);
       const cap = gameCap();
@@ -1692,7 +1786,7 @@
       <div style="flex:1;min-width:0">
         <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}</div>
         ${d.timers
-          ? `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · <b style="color:var(--gold)">⏱ ${d.timers} cycles</b></div>
+          ? `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · <b style="color:var(--gold)">⏱ ${d.timers} bucket${d.timers > 1 ? "s" : ""}</b></div>
         <div class="meta">+${fmtM(rateMin(d.diff) / d.timers)}m per bucket (${rateMin(d.diff)}m ÷ ${d.timers}) · +${rateXp(d.diff)} XP +${rateMin(d.diff)}m on finish → <b style="color:var(--gold)">+${dailyWorthXp(d)} XP · +${dailyWorth(d)}m total</b></div>`
           : `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · +${rateXp(d.diff)} XP · +${dailyWorth(d)}m game</div>`}
       </div>
@@ -1728,7 +1822,7 @@
         <button class="gold" onclick="act.addDaily()">Add</button>
         <button class="ghost" title="Park it until the 8:40 AM reset" onclick="act.addDaily(true)">🌙 Tomorrow</button>
       </div>
-      <div class="meta">One <b>rate</b> = the difficulty's payout — ${Object.entries(DIFF).map(([k, v]) => `${k} ${v.xp} XP/${v.min}m`).join(" · ")}. Every finished cycle pays a full rate, and ticking the box pays one more as a <b>finisher bonus</b>. So Hard × 5 cycles is worth <b style="color:var(--gold)">6 × (50 XP + 35m) = 300 XP · 210m</b>. No timers = one rate, paid on the box.</div>
+      <div class="meta">One <b>rate</b> = the difficulty's payout — ${Object.entries(DIFF).map(([k, v]) => `${k} ${v.xp} XP/${v.min}m`).join(" · ")}. With buckets, the buckets <b>together</b> pay one rate (each bucket 1/N of it) and ticking the box pays one more as a <b>finisher bonus</b>. So Hard × 5 buckets is worth <b style="color:var(--gold)">5 × (10 XP + 7m) + (50 XP + 35m) = 100 XP · 70m</b>. No buckets = one rate, paid on the box.</div>
     </div>
     ${S.tomorrow.length ? `<div class="section" style="margin-top:14px">🌙 PLANNED FOR TOMORROW <span class="meta">· ${S.tomorrow.length} · join your dailies at the 8:40 AM reset</span></div>`
       + S.tomorrow.map(q => {
@@ -1871,7 +1965,7 @@
       // ---------- POMODORO PANEL ----------
       const P = S.pomo;
       const flowRunning = !!P.flowStart;
-      const pomoDur = (P.phase === "break" ? (P.breakMin || pomoBreakMin()) : pomoWorkMin()) * 60000;
+      const pomoDur = (P.phase === "break" ? (P.breakMin || pomoBreakMin()) : P.mode === "flowtime" ? 0 : pomoWorkMin()) * 60000;
       const pomoRem = flowRunning ? Date.now() - P.flowStart : P.endsAt ? Math.max(0, P.endsAt - Date.now()) : (P.paused != null ? P.paused : pomoDur);
       const pomoRunning = !!P.endsAt, pomoPaused = P.paused != null;
       const activeSet = P.sets.find(s => s.id === P.active);
@@ -1936,7 +2030,7 @@
       <textarea id="pnote" placeholder="Goal for this cycle…" onchange="act.pomoNote()">${esc(P.note || "")}</textarea>
     </div>
     ` + energyCard + `<div class="section" style="margin-top:14px">🪣 BUCKETS</div>
-    <div class="hint">1 bucket = one ${POMO_WORK}-min Pomodoro cycle, or ${FLOW_BUCKET} min of Flowtime. Planning 6 hours on a task? Add 6 buckets. Buckets fill by <b>real minutes</b>, so a ${POMO_WORK + 22}-min session fills one bucket and leaves the next part-full — nothing is lost, and one long session is worth exactly the same as those minutes split up. When a set tops out the rest spills into your next unfinished set. Sessions of 50m+ pay ×1.1 and 75m+ pay ×1.2 on top. A whole set is worth <b>one</b> difficulty rate — <b style="color:var(--gold)">${Object.entries(DIFF).map(([k, v]) => `${k} ${v.min}m`).join(" · ")}</b> — split across its buckets, so each bucket pays 1/N of it (a 5-bucket Hard set pays 7m per bucket). Tap a bucket to tick/untick it manually (manual ticks don't pay — only finished cycles do).</div>
+    <div class="hint">1 bucket = one ${POMO_WORK}-min Pomodoro cycle, or ${FLOW_BUCKET} min of Flowtime. Planning 6 hours on a task? Add 6 buckets. Buckets fill by <b>real minutes</b>, so a ${POMO_WORK + 22}-min session fills one bucket and leaves the next part-full — nothing is lost, and one long session is worth exactly the same as those minutes split up. When the active set tops out it <b>grows</b> an overtime bucket instead of spilling into another set — overtime stays on the work you were doing. Sessions of 50m+ pay ×1.1 and 75m+ pay ×1.2 on top. A whole set is worth <b>one</b> difficulty rate — <b style="color:var(--gold)">${Object.entries(DIFF).map(([k, v]) => `${k} ${v.min}m`).join(" · ")}</b> — split across its buckets, so each bucket pays 1/N of it (a 5-bucket Hard set pays 7m per bucket). Tap a bucket to tick/untick it manually (manual ticks don't pay — only finished cycles do).</div>
     <div class="card col" style="gap:8px">
       <input id="bn" placeholder="Bucket set name (e.g. Edit client reel)">
       <div class="row">
@@ -2068,10 +2162,14 @@
         <div class="sub sub-stats ${tab === "stats" ? "on" : ""}"><div class="deskhead">STATS ・ 記録</div>${sBody}</div>
       </section>
     </div>`;
+      if (keep) restoreInputs(keep);
       lockMsg = "";
       ensureTick();
       refreshDbViews();
     }
+    window.addEventListener("storage", e => {
+      if (e.key === KEY && e.newValue && S && e.newValue !== JSON.stringify(S)) { load(); render(true); }
+    });
     let lastW = window.innerWidth;
     window.addEventListener("resize", () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; render(); });
 
@@ -2094,6 +2192,20 @@
     function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
     function newCid() { return window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
     function localState() { try { return JSON.parse(lsGet(KEY) || "null"); } catch (e) { return null; } }
+    // May this copy of the System finish a timer that ran out at endedAt?
+    // The device that started it goes first; any other waits TAKEOVER_MS in case
+    // that device is just asleep. Signed in, a sync that STARTED after the timer
+    // ran out must land first, so a session another device already finished is
+    // taken from the cloud instead of being logged a second time.
+    const TAKEOVER_MS = 2 * 60000;
+    let lastSyncTry = 0;
+    function timerMayFinish(owner, endedAt) {
+      if (owner && owner !== DEVICE && Date.now() < endedAt + TAKEOVER_MS) return false;
+      if (!sb || !cloudUser || !navigator.onLine) return true;
+      if (lastSyncTry >= endedAt) return true;
+      if (syncing) syncAgain = true; else sync();
+      return false;
+    }
     function schedulePush() {
       if (!sb || !cloudUser) return;
       clearTimeout(pushTimer);
@@ -2103,6 +2215,7 @@
       if (!sb || !cloudUser) return;
       if (syncing) { syncAgain = true; return; }
       syncing = true;
+      const started = Date.now();
       try {
         await syncState();
         const got = await pullLogs();
@@ -2112,7 +2225,7 @@
       } catch (e) {
         cloudMsg = navigator.onLine ? "⚠ Sync failed: " + (e.message || e) : "Offline — changes will sync when you're back online.";
       }
-      syncing = false;
+      syncing = false; lastSyncTry = started;
       if (S) refreshCloudCard();
       if (syncAgain) { syncAgain = false; sync(); }
     }
@@ -2134,7 +2247,7 @@
       }
       if (take) {
         lsSet(KEY, JSON.stringify(remote)); lsSet(SYNC_REV, String(rrev));
-        if (S) { load(); render(); }
+        if (S) { load(); render(true); }
         return;
       }
       if (local && (rrev < 0 || lrev > synced || first)) {
