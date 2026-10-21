@@ -815,6 +815,11 @@
       border-bottom: 1.5px solid var(--ink);
     }
 
+    .contact .clientnote {
+      margin-top: 28px;
+      max-width: 760px;
+    }
+
     /* ================================================= CASE STUDY */
     .cs {
       max-width: 900px;
@@ -1881,8 +1886,9 @@
             <h2 class="section__title">Selected work</h2>
           </div>
           <p class="section__note">
-            Two products designed, built and tested in public, my own app and
-            a client store, plus three years of client work, most of it under NDA.
+            Three products I designed and built end to end: my own reading app,
+            a client store and a gym app, plus three years of client work, most
+            of it under NDA.
           </p>
         </div>
 
@@ -1959,6 +1965,42 @@
             <div class="phone phone--r"><img decoding="async" width="560" height="1212"
                 src="img/t-vastra-on-mobile-the-bag-7c41dd23.webp"
                 alt="T Vastra on mobile: the bag drawer" loading="lazy" /></div>
+          </div>
+        </article>
+
+        <article class="proj reveal">
+          <div class="proj__info">
+            <div>
+              <span class="chip">Case study</span>
+              <span class="chip">Mobile app · 2026</span>
+              <span class="chip">Design system → UX → Flutter build</span>
+            </div>
+            <h3 class="proj__name">Tone Zone Fitness</h3>
+            <p class="proj__tagline">
+              A gym app where members <b>show one QR pass at the door</b> and
+              the owner sees who's in and who's paid, from the same phone.
+            </p>
+            <p class="proj__desc">
+              Two apps in one: a member side for the pass and UPI payments,
+              and a hidden owner side for check-ins, approvals and the monthly
+              money. Designed around zero running fees, then built in Flutter
+              for iOS and Android from one codebase.
+            </p>
+            <div class="proj__ctas">
+              <a class="proj__cta" href="#case-tonezone">Read the case study <span aria-hidden="true">→</span></a>
+              <a class="proj__cta" href="#contact">Let’s connect <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+          <div class="stage stage--dark" aria-hidden="false">
+            <div class="phone phone--l"><img decoding="async" width="560" height="1212"
+                src="img/tone-zone-membership-pass.webp"
+                alt="Tone Zone member app: membership pass with QR code" loading="lazy" /></div>
+            <div class="phone phone--c"><img decoding="async" width="560" height="1212"
+                src="img/tone-zone-check-in-card.webp"
+                alt="Tone Zone owner app: check-in card after scanning a member, showing Allow entry" loading="lazy" /></div>
+            <div class="phone phone--r"><img decoding="async" width="560" height="1212"
+                src="img/tone-zone-owner-dashboard.webp"
+                alt="Tone Zone owner app: dashboard with monthly revenue and unpaid members" loading="lazy" /></div>
           </div>
         </article>
 
@@ -2131,7 +2173,7 @@
                     demand behind it, refusing a tool that didn't deserve its
                     users, and iterating against real reactions until the
                     product fit. That's the same loop I run on client work —
-                    and the one I'd bring to your team.
+                    and the one I'll bring to your project.
                   </p>
                 </div>
               </div>
@@ -2433,6 +2475,129 @@
       </div>
     </section>
 
+    <!-- ============================ CASE STUDY — TONE ZONE ============================ -->
+    <section class="section section--panel" id="case-tonezone">
+      <div class="wrap">
+        <div class="cs">
+          <div class="reveal">
+            <span class="chip">Gym management · mobile app</span>
+            <span class="chip">Member + owner apps · one Flutter codebase</span>
+          </div>
+          <h2 class="section__title reveal" style="margin-top: 14px">
+            One QR at the door.<br />The whole gym on <em class="brush">one phone.</em>
+          </h2>
+          <p class="cs__lead reveal">
+            Tone Zone Fitness needed two things from one app: members who can
+            get in and pay without queueing at the desk, and an owner who can
+            see <b>who's inside, who's paid and who's waiting for approval</b>
+            without a notebook. I designed the dark Tone Zone design system and
+            every screen on both sides, then built it in Flutter with AI as the
+            brush.
+          </p>
+          <div class="cs__links reveal">
+            <a class="btn" href="#contact">Let’s connect →</a>
+            <span class="cs__video-note">Screens are from the working Flutter build, running on demo data.</span>
+          </div>
+
+          <div class="beats">
+            <div class="beat reveal">
+              <div class="beat__no">壱<small>The brief</small></div>
+              <div>
+                <h3 class="beat__title">A gym app that costs nothing to run</h3>
+                <div class="beat__body">
+                  <p>
+                    The gym's flowchart split into two people: a member who
+                    needs a pass and a way to pay, and an owner who needs to
+                    check people in, approve new members and chase unpaid fees.
+                  </p>
+                  <p>
+                    I made <strong>₹0 running fees</strong> a design rule, not an
+                    afterthought. Login is email and Google, so there are no SMS
+                    costs or DLT registration. Payment is direct UPI to the gym's
+                    own QR, so there are no gateway fees. Cash payers aren't
+                    forgotten either: the owner can mark them paid in one tap.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="beat reveal">
+              <div class="beat__no">弐<small>The pass</small></div>
+              <div>
+                <h3 class="beat__title">The door check takes one glance</h3>
+                <div class="beat__body">
+                  <p>
+                    Each member gets a <strong>signed QR pass that rotates every
+                    30 days</strong>. When the owner scans it, a card slides up
+                    with the member's name, ID, payment status, validity and
+                    last visit, topped by one big answer:
+                    <strong>Allow entry</strong> or not.
+                  </p>
+                  <p>
+                    A pass can be screenshotted, so the card is built for the
+                    owner to check the person against the name rather than
+                    pretending the QR alone is proof, with a slot for a member
+                    photo. The QR carries no personal data, just a reference
+                    the server signs.
+                  </p>
+                </div>
+                <div class="duo">
+                  <figure>
+                    <img decoding="async" width="560" height="1212" src="img/tone-zone-membership-pass.webp"
+                      alt="Member's membership pass with name, member ID, PAID badge, QR code and validity dates" loading="lazy" />
+                    <figcaption><b>The member's pass</b> paid status, validity and the next rotation date</figcaption>
+                  </figure>
+                  <figure>
+                    <img decoding="async" width="560" height="1212" src="img/tone-zone-check-in-card.webp"
+                      alt="Owner's check-in card after a scan: Allow entry, paid this month, valid until and last entry" loading="lazy" />
+                    <figcaption><b>The owner's scan</b> one big answer, with the reasons underneath</figcaption>
+                  </figure>
+                </div>
+              </div>
+            </div>
+
+            <div class="beat reveal">
+              <div class="beat__no">参<small>The owner</small></div>
+              <div>
+                <h3 class="beat__title">A hidden back office in the same app</h3>
+                <div class="beat__body">
+                  <p>
+                    There is no "admin" button for members to find. The owner's
+                    tools only appear when the owner logs in: approve or reject
+                    sign-ups, freeze a membership, record a cash payment, or let
+                    someone in on a trial with an override.
+                  </p>
+                  <p>
+                    The dashboard answers the questions an owner actually asks
+                    at the end of the month: <strong>how much came in, how many
+                    have paid, and exactly who hasn't</strong>.
+                  </p>
+                </div>
+                <div class="duo">
+                  <figure>
+                    <img decoding="async" width="560" height="1212" src="img/tone-zone-members-admin.webp"
+                      alt="Owner's members screen with a pending approval and member cards with Freeze, Cash paid and Override actions" loading="lazy" />
+                    <figcaption><b>Members</b> approvals first, then one-tap actions per member</figcaption>
+                  </figure>
+                  <figure>
+                    <img decoding="async" width="560" height="1212" src="img/tone-zone-owner-dashboard.webp"
+                      alt="Owner's dashboard with this month's revenue, paid members, total members, pending approvals and an unpaid list" loading="lazy" />
+                    <figcaption><b>Dashboard</b> the month's money and the unpaid list</figcaption>
+                  </figure>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="outcome reveal">
+            <div><b>2 apps</b><span>in one: a member side and a hidden owner side, from one Flutter codebase</span></div>
+            <div><b>₹0</b><span>per login and per payment, by design: email and Google sign-in, direct UPI</span></div>
+            <div><b>30 days</b><span>per signed QR pass, checked against the member at the door</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ============================ WHY HIRE ME ============================ -->
     <section class="section" id="hire">
       <div class="wrap">
@@ -2481,12 +2646,12 @@
           </div>
           <div class="card reveal d1">
             <span class="kanji" aria-hidden="true">技</span>
-            <h3>Designs your developer can build</h3>
+            <h3>Design only, or design and build</h3>
             <p>
               A <b>B.Tech in AI &amp; Data Science</b> means I think in
-              constraints. I design what can actually be built, prototype in
-              working code, and hand off clean files, so your developer
-              builds it without guessing.
+              constraints and design what can actually be built. Pick what you
+              need: <b>clean files for your developer</b>, or <b>I build and
+              launch it myself</b>. Either way, one price agreed up front.
             </p>
           </div>
         </div>
@@ -2566,12 +2731,12 @@
           </div>
           <div class="principle reveal d3">
             <span class="n" aria-hidden="true">四</span>
-            <h3>Then I build and deploy it</h3>
+            <h3>Hand off, or I build it</h3>
             <p>
-              No developer? No problem. Once the design is signed off, I
-              vibe code it into a working site with AI-assisted tools and
-              deploy it live for you, so you get one person from first sketch
-              to launch.
+              Your choice once the design is signed off. Have a developer? I
+              hand over clean, annotated files. No developer? I build it into a
+              working site with AI-assisted tools and deploy it live, so one
+              person takes you from first sketch to launch.
             </p>
           </div>
         </div>
@@ -2614,16 +2779,18 @@
             </h3>
             <p>
               I'm a freelance product and UI/UX designer working with clients
-              online. For three years I've been the only designer on every
-              project, which means the whole job: research and user flows, hi-fi UI in
+              online. I took my first paid project in 2023 and have freelanced
+              alongside my B.Tech ever since. For three years I've been the
+              only designer on every project, which means the whole job: research and user flows, hi-fi UI in
               <b>Figma</b>, marketing creatives, and the design system that
               keeps all of it consistent.
             </p>
             <p>
               That range shipped twelve client projects — SaaS dashboards,
-              e-commerce flows, marketing sites — and one product of my own,
-              <b>Daily Recall</b>, taken from nine user interviews through two
-              iteration cycles to a working, user-tested build.
+              e-commerce flows, marketing sites — plus <b>Daily Recall</b>, my
+              own app, taken from nine user interviews through two iteration
+              cycles to a working, user-tested build, and <b>Tone Zone
+              Fitness</b>, a gym app designed and built for iOS and Android.
             </p>
             <p>
               My technical foundation is a B.Tech in Artificial Intelligence
@@ -2640,7 +2807,7 @@
             <div class="facts">
               <div class="fact"><span>Name</span><b>Syed Mudaseer Quadri</b></div>
               <div class="fact"><span>Works with</span><b>Clients worldwide · fully remote</b></div>
-              <div class="fact"><span>Experience</span><b>3+ yrs, end-to-end product design</b></div>
+              <div class="fact"><span>Experience</span><b>3+ yrs freelance, alongside my degree</b></div>
               <div class="fact"><span>Education</span><b>B.Tech — AI &amp; Data Science ('26)</b></div>
               <div class="fact"><span>Tools</span><b>Figma · Framer · AI-assisted workflow</b></div>
               <div class="fact"><span>Focus</span><b>Mobile-first, accessible UI</b></div>
@@ -2666,6 +2833,18 @@
           a delivery date, backed by a 100% refund if the design doesn't
           work for you.
         </p>
+
+        <div class="clientnote reveal">
+          <span class="kanji" aria-hidden="true">価</span>
+          <p>
+            <b>How pricing works.</b> Every site is different, so there's no
+            fixed price list. A one-page landing site costs far less than a
+            full online store or an app, and design-only costs less than
+            design and build. Tell me what you want to build, by form,
+            WhatsApp or email, and I'll come back within 24 hours with a
+            <b>fixed quote and a delivery date</b>. No surprise invoices later.
+          </p>
+        </div>
 
         <form class="lwt reveal" id="lwt" action="https://script.google.com/macros/s/AKfycbzmutHgMw-yWAKJfQSJ2EUodL3XuTa9pqbA5zowTGGQaEWkUXQ10jNefGQaiMdDlec/exec" method="POST">
           <div class="lwt__head">
@@ -2701,6 +2880,18 @@
                 d="M2 4h20a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm10 8.4 9-6.15V6L12 12 3 6v.25l9 6.15z" />
             </svg>
             Email</a>
+          <a class="social" href="https://wa.me/918074139137?text=Hi%20Syed%2C%20I%27d%20like%20a%20quote%20for%20a%20website." target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35zM12.04 21.5h-.01a9.43 9.43 0 0 1-4.8-1.32l-.35-.2-3.57.93.96-3.48-.23-.36a9.42 9.42 0 0 1-1.44-5.03c0-5.2 4.24-9.44 9.45-9.44a9.4 9.4 0 0 1 6.68 2.77 9.38 9.38 0 0 1 2.76 6.68c0 5.21-4.24 9.45-9.45 9.45zm8.04-17.49A11.3 11.3 0 0 0 12.04.68C5.77.68.67 5.78.67 12.04c0 2 .52 3.96 1.52 5.68L.57 23.62l6.03-1.58a11.33 11.33 0 0 0 5.43 1.38h.01c6.27 0 11.37-5.1 11.37-11.37 0-3.04-1.18-5.89-3.33-8.04z" />
+            </svg>
+            WhatsApp</a>
+          <a class="social" href="https://www.linkedin.com/in/Syed-Mudaseer" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z" />
+            </svg>
+            LinkedIn</a>
           <a class="social" href="https://dribbble.com/mudaseer-quadri" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
