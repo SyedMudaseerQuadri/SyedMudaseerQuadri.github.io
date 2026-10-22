@@ -594,6 +594,15 @@
       if (S.pomo.mode === "flowtime") return Math.max(2, Math.round((workedMin || POMO_WORK) / 5));
       return (FOCUS_MODES[S.pomo.mode] || FOCUS_MODES.pomodoro).brk || POMO_BREAK;
     }
+    // Missing a day costs half a normal day's earnings, straight out of the bank —
+    // and the bank may go below zero. "Normal" = average minutes earned over the
+    // last 14 days you actually played the System (MISS_DEFAULT until there's history).
+    const MISS_CUT = 0.5, MISS_DEFAULT = 40, EARN_HIST_DAYS = 14;
+    function avgDayEarn() {
+      const h = (S.earnHist || []).filter(x => x.m > 0);
+      return h.length ? h.reduce((a, x) => a + x.m, 0) / h.length : MISS_DEFAULT;
+    }
+    function missPenalty() { return Math.max(1, Math.round(avgDayEarn() * MISS_CUT)); }
     const CROSS_PCT = 0.6;       // dailies needed (with all habits) to earn the day's red cross
     // Locks ride the reset clock rather than a rolling timer: a locked daily frees
     // itself at the next 8:40 AM rollover, a locked weekly at the next Monday 8:40 AM.
@@ -1008,7 +1017,9 @@
       if (!S.catXp.Language) S.catXp.Language = 0;
       S.dailies.forEach(d => { if (d.timers == null) d.timers = 0; });
       delete S.challenges; delete S.syncNudge;   // retired features
-      if (S.fatigued && !S.everActive) S.fatigued = false;   // heal saves wrongly fatigued before first use
+      if (S.fatigued && !S.everActive) S.fatigued = false;
+      if (S.bankStart == null) S.bankStart = S.bank;
+      if (!Array.isArray(S.earnHist)) S.earnHist = [];   // heal saves wrongly fatigued before first use
       // --- daily reset (at 8:40 AM, not midnight) ---
       const today = sysDay();
       if (S.day !== today) {
@@ -1018,7 +1029,22 @@
         const cleared = S.streakDay != null ? S.streakDay === S.day
           : S.chestOpened || (S.dailies.length > 0 && S.dailies.every(d => d.done));
         const missed = cleared ? gap - 1 : gap;
-        if (missed > 0) { if (S.shields > 0) S.shields--; else S.streak = 0; }
+        // What the last played day earned: bank growth plus what was spent from it.
+        if (S.bankStart != null) {
+          const earned = Math.round(S.bank - S.bankStart + (S.usedToday || 0) + (S.phoneToday || 0));
+          S.earnHist = (S.earnHist || []).concat([{ day: S.day, m: Math.max(0, earned) }]).slice(-EARN_HIST_DAYS);
+        }
+        let shielded = false;
+        if (missed > 0) { if (S.shields > 0) { S.shields--; shielded = true; } else S.streak = 0; }
+        // A shield covers one missed day's penalty too; every other missed day is charged.
+        const charged = Math.max(0, missed - (shielded ? 1 : 0));
+        if (charged > 0) {
+          const per = missPenalty(), cut = per * charged;
+          S.bank -= cut;
+          S.debtMsg = "💸 Missed " + charged + " day" + (charged > 1 ? "s" : "") + " — −" + cut + "m (" + per + "m each, half a normal day)." +
+            (S.bank < 0 ? " You're " + (-S.bank) + "m in debt: no game or phone time until you earn it back." : "");
+          logTx("penalty", "Missed " + charged + " day" + (charged > 1 ? "s" : "") + " (" + per + "m each)", { min: -cut });
+        } else S.debtMsg = "";
         S.fatigued = S.everActive === true && !S.anyToday;   // fatigue only after you've actually used the System
         S.day = today; S.dailies.forEach(d => { d.done = false; delete d.earned; delete d.earnedMin; (d.subs || []).forEach(x => { x.done = false; }); });
         S.habits.forEach(h => { h.done = false; delete h.earned; delete h.earnedMin; });
@@ -1027,7 +1053,7 @@
         S.pomo.sets.forEach(s => { if (s.taskId && S.dailies.some(d => d.id === s.taskId)) { s.done = 0; s.total = setBase(s); } });
         S.tomorrow.forEach(q => pushDaily(q));   // quests planned last night join today's list
         S.tomorrow = [];
-        S.usedToday = 0; S.phoneToday = 0; S.chestOpened = false; S.raidToday = false; S.anyToday = false;
+        S.usedToday = 0; S.phoneToday = 0; S.chestOpened = false; S.bankStart = S.bank; S.raidToday = false; S.anyToday = false;
       }
       // --- weekly reset (Monday 8:40 AM) ---
       const thisMonday = mondayOf(shiftNow());
@@ -1246,6 +1272,7 @@
     // ================= ACTIONS =================
     window.act = {
       tab(t) { tab = t; render(); },
+      dismissDebt() { S.debtMsg = ""; save(); render(); },
       calNav(d) { calMonth += d; render(); },
       // ---- habits (small, daily, fixed +10m reward) ----
       toggleHabit(id) {
@@ -1259,7 +1286,7 @@
           logTx("habit", "Habit done: " + h.name, { xp, min, cat: h.cat });
         } else {
           logTx("habit", "Habit undone: " + h.name, { xp: -(h.earned || 0), min: -(h.earnedMin || 0), cat: h.cat });
-          S.xp = Math.max(0, S.xp - (h.earned || 0)); S.bank = Math.max(0, S.bank - (h.earnedMin || 0));
+          S.xp = Math.max(0, S.xp - (h.earned || 0)); S.bank -= (h.earnedMin || 0);
           S.catXp[h.cat] = Math.max(0, (S.catXp[h.cat] || 0) - (h.earned || 0));
           h.done = false; delete h.earned; delete h.earnedMin;
         }
@@ -1314,7 +1341,7 @@
           logTx("daily", "Daily done: " + d.name, { xp, min, cat: d.cat });
         } else {
           logTx("daily", "Daily undone: " + d.name, { xp: -(d.earned || 0), min: -(d.earnedMin || 0), cat: d.cat });
-          S.xp = Math.max(0, S.xp - (d.earned || 0)); S.bank = Math.max(0, S.bank - (d.earnedMin || 0));
+          S.xp = Math.max(0, S.xp - (d.earned || 0)); S.bank -= (d.earnedMin || 0);
           S.catXp[d.cat] = Math.max(0, (S.catXp[d.cat] || 0) - (d.earned || 0));
           d.done = false; delete d.earned; delete d.earnedMin;
           uncreditStreak();
@@ -1427,7 +1454,7 @@
           logTx("weekly", "Weekly done: " + w.title, { xp, min, cat: w.cat });
         } else {
           logTx("weekly", "Weekly undone: " + w.title, { xp: -(w.earned || 0), min: -(w.earnedMin || 0), cat: w.cat });
-          S.xp = Math.max(0, S.xp - (w.earned || 0)); S.bank = Math.max(0, S.bank - (w.earnedMin || 0));
+          S.xp = Math.max(0, S.xp - (w.earned || 0)); S.bank -= (w.earnedMin || 0);
           S.catXp[w.cat] = Math.max(0, (S.catXp[w.cat] || 0) - (w.earned || 0));
           w.done = false; delete w.earned; delete w.earnedMin;
         }
@@ -1738,10 +1765,11 @@
       const wonTotal = S.clients.filter(c => c.status === "Deal" || c.status === "Repeat").reduce((a, c) => a + (+c.value || 0), 0);
       const fatigueBanner = S.fatigued ? '<div class="banner" style="background:#241717;border-color:#4A2E2E;color:#D6B8B8">😮‍💨 <b>FATIGUED</b> — you missed a full day. All reward minutes are halved until you complete one editing session (daily or raid).</div>' : "";
       const raidActive = !!S.raidStart;
+      const debtBanner = S.debtMsg ? `<div class="banner" style="background:#2A1414;border-color:#5A2A2A;color:#F0B4AC">${esc(S.debtMsg)} <button class="del" style="float:right" onclick="act.dismissDebt()">✕</button></div>` : "";
       const lockBanner = lockMsg ? `<div class="banner" style="background:#241E12;border-color:#4A3A1E;color:var(--gold)">${esc(lockMsg)}</div>` : "";
 
       // ---------- DAILY PANEL ----------
-      const qBody = fatigueBanner + lockBanner
+      const qBody = debtBanner + fatigueBanner + lockBanner
         + `<div class="raid">
       <div class="section" style="margin-top:0">⚔️ EDITING RAID — ${RAID_MIN} MIN</div>
       ${raidActive
@@ -2063,7 +2091,9 @@
       const rBody = fatigueBanner
         + `<div class="card col" style="gap:10px">
       <div class="section">🎮 GAME TIME PROTOCOL</div>
-      <div style="font-size:28px;font-family:'JetBrains Mono',monospace;color:var(--gold)">${S.bank} min <span style="font-size:13px;color:var(--muted)">in bank</span></div>
+      <div style="font-size:28px;font-family:'JetBrains Mono',monospace;color:${S.bank < 0 ? "var(--vermilion)" : "var(--gold)"}">${S.bank} min <span style="font-size:13px;color:var(--muted)">${S.bank < 0 ? "in debt" : "in bank"}</span></div>
+      ${S.bank < 0 ? `<div style="color:var(--vermilion);font-weight:600">💸 ${-S.bank}m of debt from missed days. Game and phone stay locked until quests and focus sessions pay it back.</div>` : ""}
+      <div class="meta">Miss a day and the System takes <b style="color:var(--vermilion)">${missPenalty()}m</b> — half your normal day (${Math.round(avgDayEarn())}m avg) — and the bank can go negative. A 🛡 shield covers one missed day.</div>
       <div class="meta">Game today: ${S.usedToday} / ${cap} min. Cap = 240 base ${smallSlain || bigSlain ? `+ boss bonuses (${smallSlain}×1% + ${bigSlain}×25%) = <b style="color:var(--gold)">${fmtH(cap)}</b>` : "(slay bosses to raise it)"}. Remaining: ${gameLeft} min.</div>
       <div class="track"><div class="fill" style="width:${Math.min(100, S.usedToday / cap * 100)}%;${S.usedToday >= cap ? "background:var(--vermilion)" : ""}"></div></div>
       ${!editingDone
@@ -2142,7 +2172,7 @@
       <div class="hstats">
         <span>🔥 ${S.streak}d${mult > 1 ? ` <span class="badge" style="background:#3A2E10;color:var(--gold)">×${mult} XP</span>` : ""}</span>
         <span>🛡 ${S.shields}</span>
-        <span>🎮 ${S.bank}m</span>
+        <span${S.bank < 0 ? ' style="color:var(--vermilion);border-color:#5A2A2A"' : ""}>🎮 ${S.bank}m</span>
         <span>⏱ cap ${fmtH(cap)}</span>
         <span>🍅 ${fmtBk(P.cycles)}</span>
         <span>💵 $${S.earnings}</span>
