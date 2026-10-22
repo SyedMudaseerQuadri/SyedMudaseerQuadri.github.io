@@ -603,6 +603,26 @@
       return h.length ? h.reduce((a, x) => a + x.m, 0) / h.length : MISS_DEFAULT;
     }
     function missPenalty() { return Math.max(1, Math.round(avgDayEarn() * MISS_CUT)); }
+    // Exception cards. Finishing a quest, habit, weekly or focus session, or
+    // opening the chest, rolls once for a drop:
+    //   🃏 Exception Card  10%   — excuse ONE daily or habit: it counts as done
+    //                               (streak, chest, calendar) but pays nothing
+    //   👑 Super Exception 0.1%  — excuse the WHOLE day: every open daily and
+    //                               habit counts as done, so no missed-day penalty
+    // Each quest rolls once per day, so tick/untick can't farm drops.
+    const CARD_RATE = 0.10, SUPER_RATE = 0.001;
+    let cardMsg = "";
+    function rollCard(src) {
+      if (!S.cards) S.cards = { ex: 0, sup: 0 };
+      const r = Math.random();
+      if (r < SUPER_RATE) {
+        S.cards.sup++; cardMsg = "👑 SUPER EXCEPTION CARD! (0.1% drop from " + src + ") — one whole day off, whenever you choose.";
+        logTx("card", "Super Exception Card dropped (" + src + ")");
+      } else if (r < SUPER_RATE + CARD_RATE) {
+        S.cards.ex++; cardMsg = "🃏 Exception Card dropped from " + src + " — skip any one task, it counts as done.";
+        logTx("card", "Exception Card dropped (" + src + ")");
+      }
+    }
     const CROSS_PCT = 0.6;       // dailies needed (with all habits) to earn the day's red cross
     // Locks ride the reset clock rather than a rolling timer: a locked daily frees
     // itself at the next 8:40 AM rollover, a locked weekly at the next Monday 8:40 AM.
@@ -1019,7 +1039,8 @@
       delete S.challenges; delete S.syncNudge;   // retired features
       if (S.fatigued && !S.everActive) S.fatigued = false;
       if (S.bankStart == null) S.bankStart = S.bank;
-      if (!Array.isArray(S.earnHist)) S.earnHist = [];   // heal saves wrongly fatigued before first use
+      if (!Array.isArray(S.earnHist)) S.earnHist = [];
+      if (!S.cards) S.cards = { ex: 0, sup: 0 };   // heal saves wrongly fatigued before first use
       // --- daily reset (at 8:40 AM, not midnight) ---
       const today = sysDay();
       if (S.day !== today) {
@@ -1047,7 +1068,9 @@
         } else S.debtMsg = "";
         S.fatigued = S.everActive === true && !S.anyToday;   // fatigue only after you've actually used the System
         S.day = today; S.dailies.forEach(d => { d.done = false; delete d.earned; delete d.earnedMin; (d.subs || []).forEach(x => { x.done = false; }); });
-        S.habits.forEach(h => { h.done = false; delete h.earned; delete h.earnedMin; });
+        S.habits.forEach(h => { h.done = false; delete h.earned; delete h.earnedMin; delete h.excused; });
+        S.dailies.forEach(d => { delete d.excused; });
+        S.dayOff = null;
         // a daily's bucket set empties with the daily, instead of staying DONE
         // forever and logging tomorrow's work as overtime
         S.pomo.sets.forEach(s => { if (s.taskId && S.dailies.some(d => d.id === s.taskId)) { s.done = 0; s.total = setBase(s); } });
@@ -1258,6 +1281,7 @@
         dbPut("pomodoro", { cid: sid ? "pomo-" + sid : undefined, ts: new Date().toISOString(), mode: P.mode || "pomodoro", worked, fill: Math.round(fill * 1000) / 1000, mult, capped: capped || null, set: set ? set.name : null, bucket: set ? fmtBk(set.done) + "/" + set.total : null, diff, cat, note: P.note || "", xp: xpGain, min: bonus });
         if (workByDay) { const wk = dayKey(shiftNow()); workByDay[wk] = (workByDay[wk] || 0) + worked; }
         logTx("pomodoro", modeTag + (set ? " — " + set.name : "") + " · " + fmtBk(fill) + " bucket · " + diff, { xp: xpGain, min: bonus, cat, note: P.note || "", worked, cid: sid ? "tx-pomo-" + sid : undefined });
+        rollCard("your focus session");
         P.note = "";
         P.phase = "break";
         P.breakMin = pomoBreakMin(worked);
@@ -1273,6 +1297,29 @@
     window.act = {
       tab(t) { tab = t; render(); },
       dismissDebt() { S.debtMsg = ""; save(); render(); },
+      dismissCard() { cardMsg = ""; render(); },
+      // 🃏 excuse one open daily or habit: done, but unpaid
+      useCard(kind, id) {
+        const q = (kind === "habit" ? S.habits : S.dailies).find(x => x.id === id);
+        if (!q || q.done || !S.cards || S.cards.ex < 1) return;
+        S.cards.ex--;
+        q.done = true; q.excused = true; q.earned = 0; q.earnedMin = 0;
+        (q.subs || []).forEach(x => { x.done = true; });
+        if (kind !== "habit" && S.dailies.every(x => x.done)) creditStreak();
+        cardMsg = "🃏 Exception used — “" + q.name + "” is excused for today. Untick it to get the card back.";
+        logTx("card", "Exception Card used on " + q.name);
+        stampToday(); save(); render();
+      },
+      // 👑 the whole day off: every open daily and habit excused
+      useSuper() {
+        if (!S.cards || S.cards.sup < 1 || S.dayOff === S.day) return;
+        S.cards.sup--; S.dayOff = S.day;
+        S.dailies.concat(S.habits).forEach(q => { if (!q.done) { q.done = true; q.excused = true; q.earned = 0; q.earnedMin = 0; (q.subs || []).forEach(x => { x.done = true; }); } });
+        if (S.dailies.length) creditStreak();
+        cardMsg = "👑 Day off. Everything today is excused — streak safe, no missed-day penalty. Rest well.";
+        logTx("card", "Super Exception Card used — day off");
+        stampToday(); save(); render();
+      },
       calNav(d) { calMonth += d; render(); },
       // ---- habits (small, daily, fixed +10m reward) ----
       toggleHabit(id) {
@@ -1284,11 +1331,13 @@
           S.xp += xp; S.bank += min; S.catXp[h.cat] = (S.catXp[h.cat] || 0) + xp;
           S.anyToday = true; S.everActive = true;
           logTx("habit", "Habit done: " + h.name, { xp, min, cat: h.cat });
+          if (h.rolled !== S.day) { h.rolled = S.day; rollCard("“" + h.name + "”"); }
         } else {
           logTx("habit", "Habit undone: " + h.name, { xp: -(h.earned || 0), min: -(h.earnedMin || 0), cat: h.cat });
           S.xp = Math.max(0, S.xp - (h.earned || 0)); S.bank -= (h.earnedMin || 0);
           S.catXp[h.cat] = Math.max(0, (S.catXp[h.cat] || 0) - (h.earned || 0));
-          h.done = false; delete h.earned; delete h.earnedMin;
+          if (h.excused && S.dayOff !== S.day) S.cards.ex++;   // card comes back
+          h.done = false; delete h.earned; delete h.earnedMin; delete h.excused;
         }
         stampToday(); save(); render();
       },
@@ -1339,11 +1388,13 @@
           if (d.cat === "Editing") clearFatigueByEditing();
           if (S.dailies.every(x => x.done)) creditStreak();
           logTx("daily", "Daily done: " + d.name, { xp, min, cat: d.cat });
+          if (d.rolled !== S.day) { d.rolled = S.day; rollCard("“" + d.name + "”"); }
         } else {
           logTx("daily", "Daily undone: " + d.name, { xp: -(d.earned || 0), min: -(d.earnedMin || 0), cat: d.cat });
           S.xp = Math.max(0, S.xp - (d.earned || 0)); S.bank -= (d.earnedMin || 0);
           S.catXp[d.cat] = Math.max(0, (S.catXp[d.cat] || 0) - (d.earned || 0));
-          d.done = false; delete d.earned; delete d.earnedMin;
+          if (d.excused && S.dayOff !== S.day) S.cards.ex++;   // card comes back
+          d.done = false; delete d.earned; delete d.earnedMin; delete d.excused;
           uncreditStreak();
         }
         stampToday(); save(); render();
@@ -1452,6 +1503,7 @@
           w.done = true; w.earned = xp; w.earnedMin = min;
           S.xp += xp; S.bank += min; S.catXp[w.cat] = (S.catXp[w.cat] || 0) + xp;
           logTx("weekly", "Weekly done: " + w.title, { xp, min, cat: w.cat });
+          if (w.rolled !== S.weekStart) { w.rolled = S.weekStart; rollCard("“" + w.title + "”"); }
         } else {
           logTx("weekly", "Weekly undone: " + w.title, { xp: -(w.earned || 0), min: -(w.earnedMin || 0), cat: w.cat });
           S.xp = Math.max(0, S.xp - (w.earned || 0)); S.bank -= (w.earnedMin || 0);
@@ -1509,6 +1561,7 @@
           const l = rollLoot(); S.chestOpened = true; l.apply(S);
           lootMsg = l.label; rolling = false;
           logTx("loot", "Chest: " + l.label);
+          rollCard("the Loot Chest");
           save(); render();
         }, 2200);
       },
@@ -1769,7 +1822,18 @@
       const lockBanner = lockMsg ? `<div class="banner" style="background:#241E12;border-color:#4A3A1E;color:var(--gold)">${esc(lockMsg)}</div>` : "";
 
       // ---------- DAILY PANEL ----------
-      const qBody = debtBanner + fatigueBanner + lockBanner
+      const cards = S.cards || { ex: 0, sup: 0 };
+      const cardPanel = `<div class="card col" style="gap:8px;border:1px solid #3A2E20">
+      <div class="section" style="margin:0">🃏 EXCEPTION CARDS</div>
+      <div class="row" style="gap:8px">
+        <span class="worktag" style="flex:1"><small>Exception</small><b>${cards.ex}</b></span>
+        <span class="worktag" style="flex:1;border-color:rgba(180,142,222,.45)"><small>Super</small><b style="color:var(--violet)">${cards.sup}</b></span>
+      </div>
+      <div class="meta">Every quest, habit, weekly, focus session and chest rolls once: <b>10%</b> 🃏 Exception (skip one task — it counts as done but pays nothing), <b>0.1%</b> 👑 Super (take the whole day off). ${cards.ex ? "Tap 🃏 on any open quest to use one." : ""}</div>
+      ${S.dayOff === S.day ? `<div style="color:var(--violet);font-weight:600">👑 Today is a day off.</div>`
+        : cards.sup ? `<button class="ghost" style="border-color:var(--violet);color:var(--violet)" onclick="if(confirm('Use your Super Exception Card? Every open daily and habit today will be excused.'))act.useSuper()">👑 Use Super Exception — take today off</button>` : ""}
+    </div>`;
+      const qBody = debtBanner + fatigueBanner + lockBanner + cardPanel
         + `<div class="raid">
       <div class="section" style="margin-top:0">⚔️ EDITING RAID — ${RAID_MIN} MIN</div>
       ${raidActive
@@ -1786,9 +1850,10 @@
     <div class="card" style="opacity:${h.done ? "0.55" : "1"};border-left:3px solid ${CATS[h.cat].color}">
       <button class="check" style="border-color:${CATS[h.cat].color};background:${h.done ? CATS[h.cat].color : "transparent"}" onclick="act.toggleHabit('${h.id}')">${h.done ? "✓" : ""}</button>
       <div style="flex:1">
-        <div style="font-weight:500;${h.done ? "text-decoration:line-through" : ""}">${esc(h.name)}</div>
+        <div style="font-weight:500;${h.done ? "text-decoration:line-through" : ""}">${esc(h.name)}${h.excused ? ` <span class="badge" style="display:inline-block;text-decoration:none;background:#231A33;color:var(--violet)">🃏 excused</span>` : ""}</div>
         <div class="meta">${CATS[h.cat].icon} ${h.cat} · +${Math.round(HABIT_XP * mult)} XP · <b style="color:var(--gold)">+${Math.round(HABIT_MIN * rewardFactor())}m game</b></div>
       </div>
+      ${!h.done && cards.ex ? `<button class="del" title="Use an Exception Card — counts as done, pays nothing" style="font-size:15px" onclick="act.useCard('habit','${h.id}')">🃏</button>` : ""}
       <button class="del" title="Move down to daily quests" style="font-size:16px" onclick="act.toDaily('${h.id}')">↓</button>
       <button class="del" onclick="act.delHabit('${h.id}')">✕</button>
     </div>`).join("")
@@ -1812,12 +1877,13 @@
       <div class="qrow">
       <button class="check" style="border-color:${CATS[d.cat].color};background:${d.done ? CATS[d.cat].color : "transparent"}" onclick="act.toggleDaily('${d.id}')">${d.done ? "✓" : ""}</button>
       <div style="flex:1;min-width:0">
-        <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}</div>
+        <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}${d.excused ? ` <span class="badge" style="display:inline-block;text-decoration:none;background:#231A33;color:var(--violet)">🃏 excused</span>` : ""}</div>
         ${d.timers
           ? `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · <b style="color:var(--gold)">⏱ ${d.timers} bucket${d.timers > 1 ? "s" : ""}</b></div>
         <div class="meta">+${fmtM(rateMin(d.diff) / d.timers)}m per bucket (${rateMin(d.diff)}m ÷ ${d.timers}) · +${rateXp(d.diff)} XP +${rateMin(d.diff)}m on finish → <b style="color:var(--gold)">+${dailyWorthXp(d)} XP · +${dailyWorth(d)}m total</b></div>`
           : `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · +${rateXp(d.diff)} XP · +${dailyWorth(d)}m game</div>`}
       </div>
+      ${!d.done && cards.ex ? `<button class="del" title="Use an Exception Card — counts as done, pays nothing" style="font-size:15px" onclick="act.useCard('daily','${d.id}')">🃏</button>` : ""}
       <button class="del steps-btn ${open ? "on" : ""}" title="Break into steps" onclick="act.toggleSubs('${d.id}')">${subs.length ? sDone + "/" + subs.length : "＋"}</button>
       ${isLocked(d)
         ? `<span class="badge" title="Locked until the 8:40 AM reset — cannot be deleted or moved" style="background:#2A1A12;color:var(--gold)">🔒</span>`
@@ -2172,6 +2238,7 @@
       <div class="hstats">
         <span>🔥 ${S.streak}d${mult > 1 ? ` <span class="badge" style="background:#3A2E10;color:var(--gold)">×${mult} XP</span>` : ""}</span>
         <span>🛡 ${S.shields}</span>
+        <span title="Exception / Super Exception cards">🃏 ${(S.cards || {}).ex || 0}${(S.cards || {}).sup ? ` · 👑 ${S.cards.sup}` : ""}</span>
         <span${S.bank < 0 ? ' style="color:var(--vermilion);border-color:#5A2A2A"' : ""}>🎮 ${S.bank}m</span>
         <span>⏱ cap ${fmtH(cap)}</span>
         <span>🍅 ${fmtBk(P.cycles)}</span>
@@ -2179,6 +2246,7 @@
         ${S.fatigued ? `<span class="badge" style="background:#3A1A1A;color:#E08C8C">😮‍💨 FATIGUED</span>` : ""}
       </div>
     </div>
+    ${cardMsg ? `<div class="banner" style="margin:10px 16px 0;background:#1E1830;border-color:#4A3A6A;color:#D9C8F5">${esc(cardMsg)} <button class="del" style="float:right" onclick="act.dismissCard()">✕</button></div>` : ""}
     <div class="tabs">
       ${[["quests", "Daily"], ["campaign", "Campaign"], ["pomodoro", "Pomodoro"], ["rewards", "Rewards"], ["stats", "Stats"]]
           .map(([k, l]) => `<button class="tab ${tab === k ? "on" : ""}" onclick="act.tab('${k}')">${l}</button>`).join("")}
