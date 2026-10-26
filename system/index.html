@@ -305,6 +305,10 @@
     .chest > div:first-child { filter: drop-shadow(0 12px 14px rgba(0, 0, 0, .7)); }
 
     .row { display: flex; gap: 8px; }
+    /* inputs share the row and shrink; buttons keep their size */
+    .row > input, .row > select { flex: 1 1 0; min-width: 0; }
+    .row > button { flex-shrink: 0; }
+    select { text-overflow: ellipsis; padding-right: 8px; }
 
     .banner {
       background: linear-gradient(155deg, rgba(111, 211, 154, .14), rgba(111, 211, 154, .04));
@@ -334,9 +338,9 @@
       border: 1px solid rgba(255, 90, 78, .25);
     }
 
-    .pipe { display: flex; gap: 7px; }
+    .pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(66px, 1fr)); gap: 7px; }
     .pipecell {
-      flex: 1;
+      min-width: 0;
       background: rgba(0, 0, 0, .3);
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -391,8 +395,11 @@
       box-shadow: 0 0 14px var(--cat);
     }
     .quest.is-done { opacity: .55; }
-    .qrow { display: flex; align-items: center; gap: 11px; }
-    .qname { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+    .qrow { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+    .qbody { flex: 1 1 150px; min-width: 0; }
+    /* action buttons stay together and drop to their own line when the column is narrow */
+    .qacts { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
+    .qname { font-weight: 600; font-size: 14.5px; overflow-wrap: break-word; }
 
     .steps-btn {
       font-family: 'JetBrains Mono', monospace;
@@ -490,10 +497,13 @@
       }
       .sub { display: block !important; }
       .sub-stats { margin-top: 6px; }
-      .p-quests { grid-column: span 3; }
-      .p-campaign { grid-column: span 3; }
-      .p-pomodoro { grid-column: span 3; }
-      .p-side { grid-column: span 3; display: flex; flex-direction: column; }
+      .panel { min-width: 0; }
+      /* two columns until there's room for four readable ones:
+         quests + campaign on the left, pomodoro + rewards/stats on the right */
+      .p-quests { grid-column: 1 / 7; grid-row: 1; }
+      .p-campaign { grid-column: 1 / 7; grid-row: 2; }
+      .p-pomodoro { grid-column: 7 / 13; grid-row: 1; }
+      .p-side { grid-column: 7 / 13; grid-row: 2; display: flex; flex-direction: column; }
       .deskhead {
         display: block;
         font-family: 'Space Grotesk', sans-serif;
@@ -506,6 +516,9 @@
         border-bottom: 1px solid var(--line);
       }
       .header { margin: 16px 22px 0; padding: 20px 24px 16px; }
+    }
+    @media (min-width:1440px) {
+      .p-quests, .p-campaign, .p-pomodoro, .p-side { grid-column: span 3; grid-row: auto; }
     }
   </style>
 </head>
@@ -939,8 +952,8 @@
         <div style="flex:1;text-align:center;font-weight:600">${MONTHS[m]} ${y}</div>
         <button class="mini" ${calMonth >= 0 ? "disabled" : ""} onclick="act.calNav(1)">›</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${dows}</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;max-width:400px;margin:0 auto">${dows}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;max-width:400px;margin:0 auto">${cells}</div>
       <div class="meta"><b style="color:var(--vermilion)">✗ ${crosses}</b> marked this month · <b style="color:var(--vermilion)">${perfect}</b> perfect · ${logged} days logged. The ✗ appears once <b>every habit</b> is ticked and <b>${Math.round(CROSS_PCT * 100)}%</b> of your dailies are done, then deepens from faint to full red as you climb to 100%. A grey dot means you worked but stopped short of the bar. Hover any day for its numbers.</div>
     </div>`;
     }
@@ -1876,13 +1889,14 @@
     <div class="card col quest ${d.done ? "is-done" : ""}" style="--cat:${CATS[d.cat].color}">
       <div class="qrow">
       <button class="check" style="border-color:${CATS[d.cat].color};background:${d.done ? CATS[d.cat].color : "transparent"}" onclick="act.toggleDaily('${d.id}')">${d.done ? "✓" : ""}</button>
-      <div style="flex:1;min-width:0">
+      <div class="qbody">
         <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}${d.excused ? ` <span class="badge" style="display:inline-block;text-decoration:none;background:#231A33;color:var(--violet)">🃏 excused</span>` : ""}</div>
         ${d.timers
           ? `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · <b style="color:var(--gold)">⏱ ${d.timers} bucket${d.timers > 1 ? "s" : ""}</b></div>
         <div class="meta">+${fmtM(rateMin(d.diff) / d.timers)}m per bucket (${rateMin(d.diff)}m ÷ ${d.timers}) · +${rateXp(d.diff)} XP +${rateMin(d.diff)}m on finish → <b style="color:var(--gold)">+${dailyWorthXp(d)} XP · +${dailyWorth(d)}m total</b></div>`
           : `<div class="meta">${CATS[d.cat].icon} ${d.cat} · ${d.diff} · +${rateXp(d.diff)} XP · +${dailyWorth(d)}m game</div>`}
       </div>
+      <div class="qacts">
       ${!d.done && cards.ex ? `<button class="del" title="Use an Exception Card — counts as done, pays nothing" style="font-size:15px" onclick="act.useCard('daily','${d.id}')">🃏</button>` : ""}
       <button class="del steps-btn ${open ? "on" : ""}" title="Break into steps" onclick="act.toggleSubs('${d.id}')">${subs.length ? sDone + "/" + subs.length : "＋"}</button>
       ${isLocked(d)
@@ -1890,6 +1904,7 @@
         : `<button class="del" title="Move up to habits" style="font-size:16px" onclick="act.toHabit('${d.id}')">↑</button>
       <button class="del" title="Lock until the 8:40 AM reset — you cannot delete or move it" style="font-size:15px" onclick="act.lockDaily('${d.id}')">🔓</button>
       <button class="del" onclick="act.delDaily('${d.id}')">✕</button>`}
+      </div>
       </div>
       ${subs.length ? `<div class="subbar"><div class="subfill" style="width:${pct}%"></div></div>` : ""}
       ${subs.length || open ? `<div class="subs">
@@ -1924,7 +1939,7 @@
         return `<div class="card col quest planned" style="--cat:${CATS[q.cat].color}">
         <div class="qrow">
         <span class="plan-moon" title="Joins your dailies at the 8:40 AM reset">🌙</span>
-        <div style="flex:1;min-width:0"><div class="qname">${esc(q.name)}</div>
+        <div class="qbody"><div class="qname">${esc(q.name)}</div>
         <div class="meta">${CATS[q.cat].icon} ${q.cat} · ${q.diff}${q.timers ? ` · ⏱ ${q.timers} buckets` : ""}</div></div>
         <button class="del steps-btn ${open ? "on" : ""}" title="Break into steps" onclick="act.toggleSubs('${q.id}')">${subs.length ? subs.length + (subs.length === 1 ? " step" : " steps") : "＋"}</button>
         <button class="del" onclick="act.delTomorrow('${q.id}')">✕</button>
@@ -2086,12 +2101,11 @@
         const auto = flowScore(fl), val = energyOf(eRec, sl), manual = eRec[sl] != null;
         const src = manual ? "manual" : auto != null ? "auto · " + fl.length + " session" + (fl.length > 1 ? "s" : "") + " · " + Math.round(fl.reduce((a, b) => a + b, 0) / fl.length) + "m avg" : "";
         return `
-        <div style="display:flex;align-items:center;gap:8px;${sl === slotNow ? "background:#221E14;border-radius:6px;padding:4px 6px" : "padding:0 6px"}">
-          <span style="flex:0 0 110px;font-weight:600">${label}${sl === slotNow ? " ←" : ""}</span>
-          ${[1, 2, 3, 4, 5].map(v => `<button class="check" style="border-color:var(--gold);background:${val === v ? (manual ? "var(--gold)" : "linear-gradient(135deg,var(--gold),var(--gold-deep))") : "transparent"};${val === v && !manual ? "box-shadow:0 0 12px rgba(242,184,75,.55)" : ""}" onclick="act.rateEnergy('${sl}',${v})">${v}</button>`).join("")}
-          <span class="meta" style="margin-left:auto">avg ${eAvg(sl)}</span>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${sl === slotNow ? "background:#221E14;border-radius:6px;padding:4px 6px" : "padding:0 6px"}">
+          <span style="flex:1 1 100%;font-weight:600;display:flex;justify-content:space-between;gap:8px">${label}${sl === slotNow ? " ←" : ""}<span class="meta" style="margin:0;font-weight:400">avg ${eAvg(sl)}</span></span>
+          ${[1, 2, 3, 4, 5].map(v => `<button class="check" style="flex:1 1 0;max-width:44px;border-color:var(--gold);color:${val === v ? "#0B0D12" : "var(--gold)"};background:${val === v ? (manual ? "var(--gold)" : "linear-gradient(135deg,var(--gold),var(--gold-deep))") : "transparent"};${val === v && !manual ? "box-shadow:0 0 12px rgba(242,184,75,.55)" : ""}" onclick="act.rateEnergy('${sl}',${v})">${v}</button>`).join("")}
         </div>
-        ${val != null ? `<div class="meta" style="margin:-2px 0 4px 122px">${src ? `<span style="opacity:.75">${src}</span> · ` : ""}${eGuide(val)}</div>` : ""}`;
+        ${val != null ? `<div class="meta" style="margin:-2px 6px 4px">${src ? `<span style="opacity:.75">${src}</span> · ` : ""}${eGuide(val)}</div>` : ""}`;
       }).join("")}
     </div>`;
       const pBody =
@@ -2130,6 +2144,8 @@
       <div class="row">
         <input id="bc" type="number" min="1" placeholder="# of buckets">
         <select id="bd">${Object.keys(DIFF).map(k => `<option ${k === "Hard" ? "selected" : ""}>${k}</option>`).join("")}</select>
+      </div>
+      <div class="row">
         <select id="bx">${Object.keys(CATS).map(c => `<option ${c === "Editing" ? "selected" : ""}>${c}</option>`).join("")}</select>
         <button class="gold" onclick="act.addBucketSet()">Add</button>
       </div>
