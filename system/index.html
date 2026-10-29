@@ -1848,10 +1848,20 @@
       }
       return { weeks, hits, cur, checkedToday: today in sk.days };
     }
+    // Each missed day before today pushes the deep skill's end back by one day,
+    // so the lock always covers a full 6 months of checked days.
+    function focusSync(sk) {
+      let missed = 0;
+      for (let k = sk.start; k < focusToday(); k = addDays(k, 1)) {
+        if (!(k in sk.days && sk.days[k] >= (sk.minutes || 0))) missed++;
+      }
+      sk.end = addDays(focusEnd(sk.start), missed);
+    }
     // A finished 6-month window moves out of the way and into the record.
     function settleFocus() {
       if (!S.focus) return;
       const today = focusToday();
+      if (S.focus.deep) focusSync(S.focus.deep);
       ["deep", "partial"].forEach(kind => {
         const sk = S.focus[kind];
         if (!sk || today <= sk.end) return;
@@ -1870,7 +1880,7 @@
       if (!sk) {
         return `<div class="card col" style="gap:8px">
         <div style="font-weight:600">${kind === "deep" ? "🎯 Deep skill" : "🌗 Partial skill"} <span class="meta">· 6 months</span></div>
-        <div class="meta">${kind === "deep" ? "Every day for 6 months. The one skill you go all in on. Once started it's locked for the full 6 months, then you can pick a new one." : "Keep it alive alongside the deep one: a set number of days a week, optionally with a minimum time each day. You can stop it any time."}</div>
+        <div class="meta">${kind === "deep" ? "Every day for 6 months. The one skill you go all in on. Once started it's locked for the full 6 months, then you can pick a new one. Each missed day adds one day to the end, so you still get 6 months of checked days." : "Keep it alive alongside the deep one: a set number of days a week, optionally with a minimum time each day. You can stop it any time."}</div>
         <input id="fn-${kind}" placeholder="Skill name">
         <input id="fa-${kind}" placeholder="Area or note (optional)">
         <div class="row">
@@ -1921,6 +1931,7 @@
         ${rows || `<div class="meta">Nothing here yet. Add skills you're thinking about, then use one when a slot opens up.</div>`}`;
     }
     function focusBody() {
+      settleFocus();
       const past = S.focus.past.slice(0, 12).map(p => `<div class="card col" style="gap:4px">
         <div style="font-weight:600">${esc(p.name)} <span class="badge" style="background:${p.outcome === "completed" ? "#1E2A1E" : "#2A1A1A"};color:${p.outcome === "completed" ? "var(--green)" : "var(--vermilion)"}">${p.outcome === "completed" ? "COMPLETED" : "STOPPED"}</span></div>
         <div class="meta">${p.kind === "deep" ? "Deep" : "Partial"}${p.area ? " · " + esc(p.area) : ""} · ${p.hits}/${FOCUS_WEEKS} weeks hit · ${p.at}</div>
