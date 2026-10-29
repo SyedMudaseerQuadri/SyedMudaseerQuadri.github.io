@@ -2,9 +2,9 @@
 <html lang="en">
 
 <head>
+  <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
   <title>THE SYSTEM — Syed's Life RPG</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
@@ -698,6 +698,7 @@
       raidStart: null, raidToday: false, anyToday: false, fatigued: false,
       pomo: { phase: "work", mode: "pomodoro", endsAt: null, paused: null, flowStart: null, breakMin: null, note: "", sets: [], active: null, cycles: 0 },
       energy: {}, tomorrow: [],
+      focus: { deep: null, partial: null, past: [], queue: [] },
     };
 
     // ================= STATE =================
@@ -1030,6 +1031,10 @@
       if (!S.habits) S.habits = [];
       if (!S.marks) S.marks = {};
       if (!S.energy) S.energy = {};
+      if (!S.focus) S.focus = structuredClone(DEFAULT.focus);
+      if (!Array.isArray(S.focus.past)) S.focus.past = [];
+      if (!Array.isArray(S.focus.queue)) S.focus.queue = [];
+      settleFocus();
       if (!FOCUS_MODES[S.pomo.mode]) S.pomo.mode = "pomodoro";   // 90/20 was retired
       if (!Array.isArray(S.tomorrow)) S.tomorrow = [];
       // Locks used to be a rolling 24h timestamp; re-express any live one as the
@@ -1814,6 +1819,172 @@
       }
       window.scrollTo(0, k.y);
     }
+    // ================= FOCUS SKILLS =================
+    // One deep skill (every day for 6 months) and one partial skill (a chosen
+    // number of days a week, optionally with a minimum time each day). Progress is
+    // counted in weeks: a week is hit when enough of its days are checked off.
+    const FOCUS_WEEKS = 26;   // 6 months
+    function keyDate(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
+    function addDays(k, n) { const x = keyDate(k); x.setDate(x.getDate() + n); return dayKey(x); }
+    function focusToday() { return dayKey(shiftNow()); }
+    function focusWeekStart(k) { const x = keyDate(k); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dayKey(x); }
+    function focusEnd(startKey) { const x = keyDate(startKey); x.setMonth(x.getMonth() + 6); x.setDate(x.getDate() - 1); return dayKey(x); }
+    function focusStats(sk) {
+      const today = focusToday(), mon0 = focusWeekStart(sk.start), weeks = [];
+      let hits = 0, cur = null;
+      for (let w = 0; w < FOCUS_WEEKS; w++) {
+        const ws = addDays(mon0, w * 7), we = addDays(ws, 6);
+        let h = 0;
+        for (let i = 0; i < 7; i++) {
+          const k = addDays(ws, i);
+          if (k >= sk.start && k <= today && k in sk.days && sk.days[k] >= (sk.minutes || 0)) h++;
+        }
+        const hit = h >= sk.perWeek;
+        const status = we < today ? (hit ? "hit" : "miss") : ws > today ? "future" : hit ? "hit" : "now";
+        if (hit && status !== "future") hits++;
+        const wk = { ws, we, h, hit, status };
+        if (ws <= today && today <= we) cur = wk;
+        weeks.push(wk);
+      }
+      return { weeks, hits, cur, checkedToday: today in sk.days };
+    }
+    // A finished 6-month window moves out of the way and into the record.
+    function settleFocus() {
+      if (!S.focus) return;
+      const today = focusToday();
+      ["deep", "partial"].forEach(kind => {
+        const sk = S.focus[kind];
+        if (!sk || today <= sk.end) return;
+        S.focus.past.unshift({ name: sk.name, area: sk.area, kind, perWeek: sk.perWeek, minutes: sk.minutes, hits: focusStats(sk).hits, outcome: "completed", at: sk.end });
+        S.focus[kind] = null;
+      });
+    }
+    // The deep skill is locked for its whole 6 months. Once that window ends,
+    // settleFocus moves it to Finished and the slot opens for a new choice.
+    function focusLocked(kind) {
+      const sk = S.focus[kind];
+      return kind === "deep" && !!sk && focusToday() <= sk.end;
+    }
+    function focusCard(kind) {
+      const sk = S.focus[kind];
+      if (!sk) {
+        return `<div class="card col" style="gap:8px">
+        <div style="font-weight:600">${kind === "deep" ? "🎯 Deep skill" : "🌗 Partial skill"} <span class="meta">· 6 months</span></div>
+        <div class="meta">${kind === "deep" ? "Every day for 6 months. The one skill you go all in on. Once started it's locked for the full 6 months, then you can pick a new one." : "Keep it alive alongside the deep one: a set number of days a week, optionally with a minimum time each day. You can stop it any time."}</div>
+        <input id="fn-${kind}" placeholder="Skill name">
+        <input id="fa-${kind}" placeholder="Area or note (optional)">
+        <div class="row">
+          ${kind === "deep"
+            ? `<select id="fw-${kind}" disabled><option>Every day</option></select>`
+            : `<select id="fw-${kind}">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 1 ? "selected" : ""}>${n === 7 ? "Every day" : n + (n === 1 ? " day" : " days") + " a week"}</option>`).join("")}</select>`}
+          <input id="fm-${kind}" type="number" min="0" placeholder="Minutes per day (optional)">
+        </div>
+        <div class="row"><button class="gold" onclick="act.focusStart('${kind}')">Start ${kind} skill</button></div>
+      </div>`;
+      }
+      const st = focusStats(sk), pct = Math.round(st.hits / FOCUS_WEEKS * 100);
+      const cw = st.cur ? st.cur.h : 0, todayVal = sk.days[focusToday()];
+      const cadence = sk.perWeek === 7 ? "every day" : sk.perWeek + "× a week";
+      const need = sk.minutes ? " · " + sk.minutes + " min+ each day" : "";
+      const cells = st.weeks.map((w, i) => `<div title="Week ${i + 1} · ${w.h} day${w.h === 1 ? "" : "s"} checked" style="aspect-ratio:1;border-radius:4px;border:1px solid ${w.status === "now" ? "var(--gold)" : "transparent"};background:${w.status === "hit" ? "var(--gold)" : w.status === "miss" ? "rgba(255,90,78,.45)" : w.status === "now" ? "rgba(242,184,75,.12)" : "rgba(255,255,255,.06)"}"></div>`).join("");
+      return `<div class="card col" style="gap:9px;border-left:3px solid ${kind === "deep" ? "var(--gold)" : "var(--blue)"}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:0"><div style="font-weight:600;overflow-wrap:anywhere">${esc(sk.name)} <span class="badge" style="background:#1E2433;color:var(--soft)">${kind === "deep" ? "DEEP" : "PARTIAL"}</span></div>
+          <div class="meta">${esc(sk.area || "")}${sk.area ? " · " : ""}${cadence}${need} · ends ${sk.end}</div></div>
+          ${focusLocked(kind)
+            ? `<span class="badge" title="You can change this after ${sk.end}" style="background:#2A1A12;color:var(--gold)">🔒 locked until ${sk.end}</span>`
+            : `<button class="del" title="Stop (it's kept under Finished)" onclick="act.focusStop('${kind}')">✕</button>`}
+        </div>
+        <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="meta"><b style="color:var(--washi)">${st.hits}</b> of ${FOCUS_WEEKS} weeks hit · this week <b style="color:var(--washi)">${cw}/${sk.perWeek}</b></div>
+        <div style="display:grid;grid-template-columns:repeat(13,1fr);gap:4px">${cells}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${sk.minutes ? `<input id="fl-${kind}" type="number" min="0" value="${todayVal != null ? todayVal : sk.minutes}" placeholder="Minutes" style="max-width:120px">` : ""}
+          <button class="gold" onclick="act.focusCheck('${kind}')">${st.checkedToday ? "Undo today ✓" : "Mark today done"}</button>
+          <span class="meta">${st.checkedToday ? "Checked for today." : "Not checked yet today."}</span>
+        </div>
+      </div>`;
+    }
+    function focusQueueBody() {
+      const free = ["deep", "partial"].filter(k => !S.focus[k]);
+      const rows = S.focus.queue.map(q => `<div class="card" style="gap:8px;padding:10px 12px">
+        <div style="flex:1;min-width:0"><div style="font-weight:600;overflow-wrap:anywhere">${esc(q.name)}</div>${q.area ? `<div class="meta">${esc(q.area)}</div>` : ""}</div>
+        ${free.map(k => `<button class="ghost" style="padding:4px 10px;font-size:11px" onclick="act.focusQueueUse('${q.id}','${k}')">Use as ${k}</button>`).join("")}
+        <button class="del" title="Remove" onclick="act.focusQueueDel('${q.id}')">✕</button>
+      </div>`).join("");
+      return `<div class="section" style="margin-top:14px">Future skills <span class="meta">· skills you may work on later</span></div>
+        <div class="card col" style="gap:8px">
+          <input id="qn" placeholder="Skill name">
+          <input id="qa" placeholder="Area or note (optional)">
+          <div class="row"><button class="gold" onclick="act.focusQueueAdd()">Add to future skills</button></div>
+        </div>
+        ${rows || `<div class="meta">Nothing here yet. Add skills you're thinking about, then use one when a slot opens up.</div>`}`;
+    }
+    function focusBody() {
+      const past = S.focus.past.slice(0, 12).map(p => `<div class="card col" style="gap:4px">
+        <div style="font-weight:600">${esc(p.name)} <span class="badge" style="background:${p.outcome === "completed" ? "#1E2A1E" : "#2A1A1A"};color:${p.outcome === "completed" ? "var(--green)" : "var(--vermilion)"}">${p.outcome === "completed" ? "COMPLETED" : "STOPPED"}</span></div>
+        <div class="meta">${p.kind === "deep" ? "Deep" : "Partial"}${p.area ? " · " + esc(p.area) : ""} · ${p.hits}/${FOCUS_WEEKS} weeks hit · ${p.at}</div>
+      </div>`).join("");
+      return `<div class="section">FOCUS SKILLS ・ 専門</div>
+        <div class="hint">Pick <b>one deep skill</b> to go all in on for 6 months, and <b>one partial skill</b> to keep up beside it. A week counts as hit when enough of its days are checked off: all 7 for the deep skill, your chosen number for the partial one.</div>
+        ${focusCard("deep")}${focusCard("partial")}
+        ${focusQueueBody()}
+        ${past ? `<div class="section" style="margin-top:14px">Finished <span class="meta">· kept for your record</span></div>${past}` : ""}`;
+    }
+    Object.assign(act, {
+      focusStart(kind) {
+        if (S.focus[kind]) return;
+        const name = document.getElementById("fn-" + kind).value.trim();
+        if (!name) return;
+        const area = document.getElementById("fa-" + kind).value.trim();
+        const perWeek = kind === "deep" ? 7 : parseInt(document.getElementById("fw-partial").value, 10) || 1;
+        const minutes = Math.max(0, parseInt(document.getElementById("fm-" + kind).value, 10) || 0);
+        const today = focusToday();
+        S.focus[kind] = { id: "f" + Date.now(), name, area, perWeek, minutes, start: today, end: focusEnd(today), days: {} };
+        S.focus.queue = S.focus.queue.filter(q => q.name.toLowerCase() !== name.toLowerCase());
+        save(); render();
+      },
+      focusCheck(kind) {
+        const sk = S.focus[kind];
+        if (!sk) return;
+        const today = focusToday();
+        if (today in sk.days) delete sk.days[today];
+        else {
+          const v = document.getElementById("fl-" + kind);
+          sk.days[today] = sk.minutes ? Math.max(0, parseInt(v ? v.value : "", 10) || 0) : 0;
+        }
+        save(); render();
+      },
+      focusQueueAdd() {
+        const name = document.getElementById("qn").value.trim();
+        if (!name) return;
+        const area = document.getElementById("qa").value.trim();
+        S.focus.queue.push({ id: "q" + Date.now(), name, area });
+        save(); render();
+      },
+      focusQueueDel(id) {
+        S.focus.queue = S.focus.queue.filter(q => q.id !== id);
+        save(); render();
+      },
+      // Copies a future skill into the empty deep or partial form, so the user
+      // still picks the schedule before it starts.
+      focusQueueUse(id, kind) {
+        const q = S.focus.queue.find(x => x.id === id);
+        if (!q || S.focus[kind]) return;
+        render(true);   // soft render keeps what's typed in the other form
+        document.getElementById("fn-" + kind).value = q.name;
+        document.getElementById("fa-" + kind).value = q.area || "";
+        document.getElementById("fn-" + kind).scrollIntoView({ block: "center" });
+      },
+      focusStop(kind) {
+        const sk = S.focus[kind];
+        if (!sk || focusLocked(kind)) return;
+        if (!confirm(`Stop "${sk.name}"? It moves to Finished with ${focusStats(sk).hits} weeks hit.`)) return;
+        S.focus.past.unshift({ name: sk.name, area: sk.area, kind, perWeek: sk.perWeek, minutes: sk.minutes, hits: focusStats(sk).hits, outcome: "stopped", at: focusToday() });
+        S.focus[kind] = null;
+        save(); render();
+      },
+    });
     function render(soft) {
       const keep = soft && S ? snapInputs() : null;
       const { level, cur, need } = levelInfo(S.xp);
@@ -2264,14 +2435,15 @@
     </div>
     ${cardMsg ? `<div class="banner" style="margin:10px 16px 0;background:#1E1830;border-color:#4A3A6A;color:#D9C8F5">${esc(cardMsg)} <button class="del" style="float:right" onclick="act.dismissCard()">✕</button></div>` : ""}
     <div class="tabs">
-      ${[["quests", "Daily"], ["campaign", "Campaign"], ["pomodoro", "Pomodoro"], ["rewards", "Rewards"], ["stats", "Stats"]]
+      ${[["quests", "Daily"], ["campaign", "Campaign"], ["pomodoro", "Pomodoro"], ["skills", "Focus"], ["rewards", "Rewards"], ["stats", "Stats"]]
           .map(([k, l]) => `<button class="tab ${tab === k ? "on" : ""}" onclick="act.tab('${k}')">${l}</button>`).join("")}
     </div>
     <div class="wrap">
       <section class="panel p-quests ${tab === "quests" ? "on" : ""}"><div class="deskhead">DAILY QUESTS ・ 日課</div>${qBody}</section>
       <section class="panel p-campaign ${tab === "campaign" ? "on" : ""}"><div class="deskhead">CAMPAIGN ・ 遠征</div>${cBody}</section>
       <section class="panel p-pomodoro ${tab === "pomodoro" ? "on" : ""}"><div class="deskhead">POMODORO ・ 集中</div>${pBody}</section>
-      <section class="panel p-side ${tab === "rewards" || tab === "stats" ? "on" : ""}">
+      <section class="panel p-side ${tab === "skills" || tab === "rewards" || tab === "stats" ? "on" : ""}">
+        <div class="sub sub-skills ${tab === "skills" ? "on" : ""}"><div class="deskhead">FOCUS ・ 専門</div>${focusBody()}</div>
         <div class="sub sub-rewards ${tab === "rewards" ? "on" : ""}"><div class="deskhead">REWARDS ・ 報酬</div>${rBody}</div>
         <div class="sub sub-stats ${tab === "stats" ? "on" : ""}"><div class="deskhead">STATS ・ 記録</div>${sBody}</div>
       </section>
