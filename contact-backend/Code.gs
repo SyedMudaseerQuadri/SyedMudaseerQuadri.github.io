@@ -20,7 +20,7 @@ const CONFIG = {
   MAX_EMAIL: 150,
   MAX_MESSAGE: 5000,
   SAME_EMAIL_COOLDOWN_S: 60,                // one message per address per minute
-  MAX_PER_HOUR: 30,                         // overall cap, stops floods
+  MAX_PER_HOUR: 30,                         // emails per hour; messages past this are still saved
 };
 
 /** Health check: open the /exec URL in a browser to see {"ok":true}. */
@@ -53,8 +53,6 @@ function doPost(e) {
   const cache = CacheService.getScriptCache();
   if (cache.get('sent:' + email)) return json_({ ok: false, error: 'too_soon' });
   const hourKey = 'hour:' + Utilities.formatDate(new Date(), 'UTC', 'yyyyMMddHH');
-  const sentThisHour = Number(cache.get(hourKey) || 0);
-  if (sentThisHour >= CONFIG.MAX_PER_HOUR) return json_({ ok: false, error: 'busy' });
 
   const lock = LockService.getScriptLock();
   try {
@@ -62,19 +60,26 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: 'busy' });
   }
+  // Always save, even in a flood, so spam can't push out a real enquiry.
+  // The hourly cap only limits email, which protects the daily mail quota.
+  let sendMail;
   try {
     sheet_().appendRow([new Date(), name, email, message, page, 'new']);
     SpreadsheetApp.flush();
     cache.put('sent:' + email, '1', CONFIG.SAME_EMAIL_COOLDOWN_S);
+    const sentThisHour = Number(cache.get(hourKey) || 0);
+    sendMail = sentThisHour < CONFIG.MAX_PER_HOUR;
     cache.put(hourKey, String(sentThisHour + 1), 3600);
   } finally {
     lock.releaseLock();
   }
 
   // The message is already saved; a mail hiccup must not turn into an error for the client.
-  try { notifyOwner_(name, email, message, page); } catch (err) { console.error(err); }
-  if (CONFIG.AUTO_REPLY) {
-    try { autoReply_(name, email, message); } catch (err) { console.error(err); }
+  if (sendMail) {
+    try { notifyOwner_(name, email, message, page); } catch (err) { console.error(err); }
+    if (CONFIG.AUTO_REPLY) {
+      try { autoReply_(email); } catch (err) { console.error(err); }
+    }
   }
 
   return json_({ ok: true });
@@ -102,23 +107,24 @@ function notifyOwner_(name, email, message, page) {
   });
 }
 
-function autoReply_(name, email, message) {
+/**
+ * Fixed text only. The address is whatever the visitor typed, so echoing their
+ * name or message would let anyone send their own text from this account.
+ */
+function autoReply_(email) {
   MailApp.sendEmail({
     to: email,
     replyTo: CONFIG.NOTIFY_TO,
     name: CONFIG.OWNER_NAME,
-    subject: 'Got your message, ' + name.split(' ')[0],
+    subject: 'Thanks for your message',
     body: [
-      'Hi ' + name.split(' ')[0] + ',',
+      'Hi,',
       '',
       'Thanks for reaching out. Your message reached me and I will reply within 24 hours.',
       '',
       'If you need to add anything, just reply to this email.',
       '',
       CONFIG.OWNER_NAME,
-      '',
-      '--- Your message ---',
-      message,
     ].join('\n'),
   });
 }
