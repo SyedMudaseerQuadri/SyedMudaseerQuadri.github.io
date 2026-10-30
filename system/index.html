@@ -429,7 +429,25 @@
       transition: width .45s cubic-bezier(.2, .8, .2, 1);
     }
 
-    .subs { margin: 10px 0 0 39px; display: flex; flex-direction: column; gap: 6px; }
+    .subs { margin: 10px 0 0 59px; display: flex; flex-direction: column; gap: 6px; }
+
+    /* ---------- drag handle: hold ⋮⋮ and drag to reorder quests ---------- */
+    .grip {
+      width: 14px; flex: 0 0 14px; margin-right: -5px;
+      display: grid; place-items: center;
+      color: #5B6172; font-size: 15px; letter-spacing: -3px; line-height: 1;
+      cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+      padding: 8px 0;
+    }
+    .grip:hover { color: var(--washi); }
+    .quest.dragging {
+      z-index: 5; cursor: grabbing; transition: none !important;
+      border-color: var(--gold) !important;
+      box-shadow: 0 26px 50px -16px rgba(0, 0, 0, .95), 0 0 0 1px rgba(242, 184, 75, .35);
+    }
+    .quest.dragging .grip { cursor: grabbing; color: var(--gold); }
+    .quest.shifting { transition: transform .18s cubic-bezier(.2, .8, .2, 1) !important; }
+    body.qdragging, body.qdragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
     .subitem {
       display: flex;
       align-items: center;
@@ -1996,7 +2014,68 @@
         save(); render();
       },
     });
+    /* ---------- drag to reorder quests (pointer events: mouse + touch) ---------- */
+    let qdrag = null;
+    function dragQuest(e, list) {
+      if (e.button > 0 || qdrag) return;
+      const card = e.target.closest(".quest");
+      const cards = [...document.querySelectorAll(`.quest[data-list="${list}"]`)];
+      const from = cards.indexOf(card);
+      if (from < 0) return;
+      e.preventDefault();
+      const gap = parseFloat(getComputedStyle(card).marginBottom) || 0;
+      qdrag = {
+        list, card, cards, from, to: from, id: card.dataset.qid, y0: e.pageY,
+        mids: cards.map(c => { const r = c.getBoundingClientRect(); return r.top + scrollY + r.height / 2; }),
+        h: card.getBoundingClientRect().height + gap
+      };
+      cards.forEach(c => { if (c !== card) c.classList.add("shifting"); });
+      card.classList.add("dragging");
+      document.body.classList.add("qdragging");
+      if (navigator.vibrate) try { navigator.vibrate(12); } catch (err) { }
+      document.addEventListener("pointermove", dragMove);
+      document.addEventListener("pointerup", dragEnd);
+      document.addEventListener("pointercancel", dragEnd);
+    }
+    function dragMove(e) {
+      if (!qdrag) return;
+      e.preventDefault();
+      // nudge the page when the quest is held near the top or bottom edge
+      if (e.clientY < 70) scrollBy(0, -14); else if (e.clientY > innerHeight - 70) scrollBy(0, 14);
+      const q = qdrag, dy = e.clientY + scrollY - q.y0;
+      const center = q.mids[q.from] + dy;
+      let to = q.from;
+      for (let i = q.from + 1; i < q.mids.length; i++) if (center > q.mids[i]) to = i;
+      for (let i = q.from - 1; i >= 0; i--) if (center < q.mids[i]) to = i;
+      q.to = to;
+      q.card.style.transform = `translateY(${dy}px) scale(1.02)`;
+      q.cards.forEach((c, i) => {
+        if (c === q.card) return;
+        const shift = q.from < to && i > q.from && i <= to ? -q.h : q.from > to && i < q.from && i >= to ? q.h : 0;
+        c.style.transform = shift ? `translateY(${shift}px)` : "";
+      });
+    }
+    function dragEnd() {
+      if (!qdrag) return;
+      const { list, from, to, id, cards } = qdrag;
+      qdrag = null;
+      document.removeEventListener("pointermove", dragMove);
+      document.removeEventListener("pointerup", dragEnd);
+      document.removeEventListener("pointercancel", dragEnd);
+      document.body.classList.remove("qdragging");
+      cards.forEach(c => { c.style.transform = ""; c.classList.remove("shifting", "dragging"); });
+      const arr = S[list];
+      // only reorder if the list on screen still matches the saved list
+      if (to !== from && arr[from] && arr[from].id === id) {
+        const [q] = arr.splice(from, 1);
+        arr.splice(to, 0, q);
+        save();
+      }
+      render(true);
+    }
+
     function render(soft) {
+      if (qdrag) return;   // a re-render mid-drag would pull the card out from under the pointer; dragEnd renders
       const keep = soft && S ? snapInputs() : null;
       const { level, cur, need } = levelInfo(S.xp);
       const rank = rankOf(level);
@@ -2061,15 +2140,16 @@
       </div>
     </div>`
         + `<div class="section" style="margin-top:18px">📋 DAILY QUESTS <span class="meta">· ${doneCount}/${S.dailies.length}</span></div>`
-        + `<div class="hint">Dailies reset at 8:40 AM — late-night grinding still counts as today. Finish ALL to unlock the Loot Chest. Big quest? Hit <b>＋</b> to break it into steps — ticking the last step completes the quest. Hit 🔓 on a quest to lock it until the 8:40 AM reset — you cannot delete or move a locked quest, though you can always add more.${mult > 1 ? ` Streak bonus active: <b style="color:var(--gold)">all XP ×${mult}</b>.` : " Reach a 7-day streak for ×1.1 XP (14d ×1.2, 30d ×1.5)."}</div>`
+        + `<div class="hint">Dailies reset at 8:40 AM — late-night grinding still counts as today. Hold <b>⋮⋮</b> and drag to reorder. Finish ALL to unlock the Loot Chest. Big quest? Hit <b>＋</b> to break it into steps — ticking the last step completes the quest. Hit 🔓 on a quest to lock it until the 8:40 AM reset — you cannot delete or move a locked quest, though you can always add more.${mult > 1 ? ` Streak bonus active: <b style="color:var(--gold)">all XP ×${mult}</b>.` : " Reach a 7-day streak for ×1.1 XP (14d ×1.2, 30d ×1.5)."}</div>`
         + S.dailies.map(d => {
           const subs = d.subs || [];
           const sDone = subs.filter(x => x.done).length;
           const open = !!subOpen[d.id];
           const pct = subs.length ? Math.round(sDone / subs.length * 100) : 0;
           return `
-    <div class="card col quest ${d.done ? "is-done" : ""}" style="--cat:${CATS[d.cat].color}">
+    <div class="card col quest ${d.done ? "is-done" : ""}" data-list="dailies" data-qid="${d.id}" style="--cat:${CATS[d.cat].color}">
       <div class="qrow">
+      <span class="grip" title="Drag to reorder" onpointerdown="dragQuest(event,'dailies')">⋮⋮</span>
       <button class="check" style="border-color:${CATS[d.cat].color};background:${d.done ? CATS[d.cat].color : "transparent"}" onclick="act.toggleDaily('${d.id}')">${d.done ? "✓" : ""}</button>
       <div class="qbody">
         <div class="qname" style="${d.done ? "text-decoration:line-through" : ""}">${esc(d.name)}${d.excused ? ` <span class="badge" style="display:inline-block;text-decoration:none;background:#231A33;color:var(--violet)">🃏 excused</span>` : ""}</div>
@@ -2118,8 +2198,9 @@
     ${S.tomorrow.length ? `<div class="section" style="margin-top:14px">🌙 PLANNED FOR TOMORROW <span class="meta">· ${S.tomorrow.length} · join your dailies at the 8:40 AM reset</span></div>`
       + S.tomorrow.map(q => {
         const subs = q.subs || [], open = !!subOpen[q.id];
-        return `<div class="card col quest planned" style="--cat:${CATS[q.cat].color}">
+        return `<div class="card col quest planned" data-list="tomorrow" data-qid="${q.id}" style="--cat:${CATS[q.cat].color}">
         <div class="qrow">
+        <span class="grip" title="Drag to reorder" onpointerdown="dragQuest(event,'tomorrow')">⋮⋮</span>
         <span class="plan-moon" title="Joins your dailies at the 8:40 AM reset">🌙</span>
         <div class="qbody"><div class="qname">${esc(q.name)}</div>
         <div class="meta">${CATS[q.cat].icon} ${q.cat} · ${q.diff}${q.timers ? ` · ⏱ ${q.timers} buckets` : ""}</div></div>
