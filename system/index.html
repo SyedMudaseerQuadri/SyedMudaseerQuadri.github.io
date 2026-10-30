@@ -1606,6 +1606,7 @@
         const P = S.pomo;
         if (P.endsAt || P.flowStart) return;
         pomoMsg = "";
+        askNotify();
         if (P.phase === "work" && P.mode === "flowtime" && P.paused == null) {
           P.flowStart = Date.now();   // open-ended: count up until focus drops
           P.sid = newCid(); P.dev = DEVICE;
@@ -1784,6 +1785,46 @@
       r.readAsText(f); ev.target.value = "";
     });
 
+    // ---- timer alerts ----
+    // Pomodoro: ping when the work cycle ends (take a break) and when the break
+    // ends. Flowtime work is open-ended — you stop it yourself — so it only gets
+    // the break-over ping. Only the device that started the timer alerts, once.
+    let alertedEnd = 0, swReg = null;
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/system/sw.js").then(r => { swReg = r; }).catch(() => { });
+    function askNotify() {
+      if ("Notification" in window && Notification.permission === "default") try { Notification.requestPermission(); } catch (e) { }
+    }
+    function chime() {
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        [0, .22, .44].forEach((t, i) => {
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.frequency.value = [880, 1175, 1568][i]; o.type = "sine";
+          g.gain.setValueAtTime(.0001, ac.currentTime + t);
+          g.gain.exponentialRampToValueAtTime(.25, ac.currentTime + t + .02);
+          g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + t + .5);
+          o.connect(g).connect(ac.destination); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + .55);
+        });
+        setTimeout(() => ac.close(), 1500);
+      } catch (e) { }
+    }
+    function notify(title, body) {
+      chime();
+      if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch (e) { }
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const opts = { body, tag: "system-timer", renotify: true, requireInteraction: true };
+      // phones only show notifications through the service worker
+      if (swReg) swReg.showNotification(title, opts).catch(() => { try { new Notification(title, opts); } catch (e) { } });
+      else try { new Notification(title, opts); } catch (e) { }
+    }
+    function timerAlert(P) {
+      if (alertedEnd === P.endsAt || (P.dev && P.dev !== DEVICE)) return;
+      alertedEnd = P.endsAt;
+      if (Date.now() - P.endsAt > 3 * 60000) return;   // long over (app was closed) — don't ping stale news
+      if (P.phase === "break") notify("☕ Break over", "You've completed your break time. Back to work!");
+      else if (P.mode !== "flowtime") notify("🍅 Time's up!", "Your " + pomoWorkMin() + " min focus is done — take a " + (P.breakMin || pomoBreakMin()) + " min break.");
+    }
+
     // ================= RENDER =================
     function ensureTick() {
       if (S.raidStart && !raidTimer) {
@@ -1806,6 +1847,7 @@
           if (P2.flowStart) { if (el) el.textContent = fmtClock(Date.now() - P2.flowStart); return; }
           const rem = P2.endsAt - Date.now();
           if (rem <= 0) {
+            timerAlert(P2);
             if (!timerMayFinish(P2.dev, P2.endsAt)) { if (el) el.textContent = "00:00"; return; }
             // ran out while the app was closed: log it, but don't start a break that's long over
             const fresh = Date.now() - P2.endsAt < 60000;
@@ -2394,6 +2436,11 @@
       ${flowRunning && (Date.now() - P.flowStart) / 60000 > FLOW_MAX ? `<div style="color:var(--vermilion);font-weight:600;font-size:13px;margin-top:10px">⚠ This flow session has run over ${FLOW_MAX / 60}h. Payout caps at ${FLOW_MAX}m — did you forget to stop the clock?</div>` : ""}
       ${pomoMsg ? `<div style="color:var(--gold);font-weight:600;font-size:13px;margin-top:10px">${esc(pomoMsg)}</div>` : ""}
       <div class="meta" style="margin-top:8px">🍅 ${fmtBk(P.cycles)} work cycles completed all-time.</div>
+      ${!("Notification" in window) ? "" : Notification.permission === "granted"
+        ? `<div class="meta">🔔 Alerts on — ${P.mode === "flowtime" ? "you'll be pinged when your break is over" : "you'll be pinged when work ends and when your break is over"}.</div>`
+        : Notification.permission === "denied"
+          ? `<div class="meta" style="color:var(--vermilion)">🔕 Notifications are blocked — allow them for this site in your browser settings to get timer alerts.</div>`
+          : `<button class="ghost" style="margin-top:8px;padding:6px 12px;font-size:12px" onclick="Notification.requestPermission().then(()=>render())">🔔 Turn on timer alerts</button>`}
     </div>
     <div class="card col" style="gap:6px">
       <div class="section" style="margin:0">🎯 CYCLE GOAL</div>
