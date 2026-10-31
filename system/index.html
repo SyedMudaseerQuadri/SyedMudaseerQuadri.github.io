@@ -1960,7 +1960,7 @@
       return `<div class="card col" style="gap:9px;border-left:3px solid ${kind === "deep" ? "var(--gold)" : "var(--blue)"}">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="flex:1;min-width:0"><div style="font-weight:600;overflow-wrap:anywhere">${esc(sk.name)} <span class="badge" style="background:#1E2433;color:var(--soft)">${kind === "deep" ? "DEEP" : "PARTIAL"}</span></div>
-          <div class="meta">${esc(sk.area || "")}${sk.area ? " · " : ""}${cadence}${need} · ends ${sk.end}</div></div>
+          <div class="meta">${esc(sk.area || "")}${sk.area ? " · " : ""}${cadence}${need} · ends ${sk.end} <button class="del" title="Change the minutes per day" style="padding:0 5px;font-size:12px" onclick="act.focusMinutes('${kind}')">✎ min</button></div></div>
           ${focusLocked(kind)
             ? `<span class="badge" title="You can change this after ${sk.end}" style="background:#2A1A12;color:var(--gold)">🔒 locked until ${sk.end}</span>`
             : `<button class="del" title="Stop (it's kept under Finished)" onclick="act.focusStop('${kind}')">✕</button>`}
@@ -2024,6 +2024,19 @@
           const v = document.getElementById("fl-" + kind);
           sk.days[today] = sk.minutes ? Math.max(0, parseInt(v ? v.value : "", 10) || 0) : 0;
         }
+        save(); render();
+      },
+      // The 6-month lock covers the skill itself, not the daily time target —
+      // that can be tuned any time. It applies to every day, past ones too.
+      focusMinutes(kind) {
+        const sk = S.focus[kind];
+        if (!sk) return;
+        const raw = prompt("Minutes per day for " + sk.name + " (0 = no minimum):", sk.minutes || 0);
+        if (raw == null) return;
+        const m = parseInt(raw, 10);
+        if (isNaN(m) || m < 0) return;
+        logTx("task", "Focus minutes: " + sk.name + " " + (sk.minutes || 0) + " → " + m + " min/day");
+        sk.minutes = m;
         save(); render();
       },
       focusQueueAdd() {
