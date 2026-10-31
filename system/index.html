@@ -435,7 +435,7 @@
     .grip {
       width: 14px; flex: 0 0 14px; margin-right: -5px;
       display: grid; place-items: center;
-      color: #5B6172; font-size: 15px; letter-spacing: -3px; line-height: 1;
+      color: var(--muted); font-size: 15px; letter-spacing: -3px; line-height: 1;
       cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
       padding: 8px 0;
     }
@@ -1052,6 +1052,16 @@
       if (!S.focus) S.focus = structuredClone(DEFAULT.focus);
       if (!Array.isArray(S.focus.past)) S.focus.past = [];
       if (!Array.isArray(S.focus.queue)) S.focus.queue = [];
+      // One-off fixes, each applied once: Marketing's daily target 360 → 240,
+      // and drop the "Deep art skills" test entry from Finished.
+      if (!Array.isArray(S.fixes)) S.fixes = [];
+      if (!S.fixes.includes("focus-2026-10-31")) {
+        const dk = S.focus.deep;
+        if (dk && dk.name === "Marketing" && dk.minutes === 360) dk.minutes = 240;
+        S.focus.past = S.focus.past.filter(p => !(p.name === "Deep art skills" && p.outcome === "stopped"));
+        S.fixes.push("focus-2026-10-31");
+        setTimeout(save, 0);   // after load finishes, so the fix syncs to every device
+      }
       settleFocus();
       if (!FOCUS_MODES[S.pomo.mode]) S.pomo.mode = "pomodoro";   // 90/20 was retired
       if (!Array.isArray(S.tomorrow)) S.tomorrow = [];
@@ -1960,7 +1970,8 @@
       return `<div class="card col" style="gap:9px;border-left:3px solid ${kind === "deep" ? "var(--gold)" : "var(--blue)"}">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="flex:1;min-width:0"><div style="font-weight:600;overflow-wrap:anywhere">${esc(sk.name)} <span class="badge" style="background:#1E2433;color:var(--soft)">${kind === "deep" ? "DEEP" : "PARTIAL"}</span></div>
-          <div class="meta">${esc(sk.area || "")}${sk.area ? " · " : ""}${cadence}${need} · ends ${sk.end} <button class="del" title="Change the minutes per day" style="padding:0 5px;font-size:12px" onclick="act.focusMinutes('${kind}')">✎ min</button></div></div>
+          <div class="meta">${esc(sk.area || "")}${sk.area ? " · " : ""}${cadence}${need} · ends ${sk.end}</div>
+          <button class="ghost" title="Change the minutes per day" style="margin-top:7px;padding:4px 10px;font-size:11.5px;border-color:rgba(242,184,75,.45);color:var(--gold)" onclick="act.focusMinutes('${kind}')">✎ Edit minutes</button></div>
           ${focusLocked(kind)
             ? `<span class="badge" title="You can change this after ${sk.end}" style="background:#2A1A12;color:var(--gold)">🔒 locked until ${sk.end}</span>`
             : `<button class="del" title="Stop (it's kept under Finished)" onclick="act.focusStop('${kind}')">✕</button>`}
