@@ -1992,8 +1992,9 @@
     }
     function focusBody() {
       settleFocus();
-      const past = S.focus.past.slice(0, 12).map(p => `<div class="card col" style="gap:4px">
-        <div style="font-weight:600">${esc(p.name)} <span class="badge" style="background:${p.outcome === "completed" ? "#1E2A1E" : "#2A1A1A"};color:${p.outcome === "completed" ? "var(--green)" : "var(--vermilion)"}">${p.outcome === "completed" ? "COMPLETED" : "STOPPED"}</span></div>
+      const past = S.focus.past.slice(0, 12).map((p, i) => `<div class="card col" style="gap:4px">
+        <div style="font-weight:600;display:flex;align-items:center;gap:6px"><span style="flex:1;min-width:0">${esc(p.name)} <span class="badge" style="background:${p.outcome === "completed" ? "#1E2A1E" : "#2A1A1A"};color:${p.outcome === "completed" ? "var(--green)" : "var(--vermilion)"}">${p.outcome === "completed" ? "COMPLETED" : "STOPPED"}</span></span>
+          <button class="del" title="Remove from Finished" onclick="act.focusPastDel(${i})">✕</button></div>
         <div class="meta">${p.kind === "deep" ? "Deep" : "Partial"}${p.area ? " · " + esc(p.area) : ""} · ${p.hits}/${FOCUS_WEEKS} weeks hit · ${p.at}</div>
       </div>`).join("");
       return `<div class="section">FOCUS SKILLS ・ 専門</div>
@@ -2037,6 +2038,13 @@
         if (isNaN(m) || m < 0) return;
         logTx("task", "Focus minutes: " + sk.name + " " + (sk.minutes || 0) + " → " + m + " min/day");
         sk.minutes = m;
+        save(); render();
+      },
+      focusPastDel(i) {
+        const p = S.focus.past[i];
+        if (!p || !confirm("Remove \"" + p.name + "\" from Finished? This can't be undone.")) return;
+        S.focus.past.splice(i, 1);
+        logTx("task", "Finished skill removed: " + p.name);
         save(); render();
       },
       focusQueueAdd() {
