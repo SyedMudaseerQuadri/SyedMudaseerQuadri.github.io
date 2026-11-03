@@ -1052,6 +1052,7 @@
       if (!S.focus) S.focus = structuredClone(DEFAULT.focus);
       if (!Array.isArray(S.focus.past)) S.focus.past = [];
       if (!Array.isArray(S.focus.queue)) S.focus.queue = [];
+      if (!Array.isArray(S.todos)) S.todos = [];
       // One-off fixes, each applied once: Marketing's daily target 360 → 240,
       // and drop the "Deep art skills" test entry from Finished.
       if (!Array.isArray(S.fixes)) S.fixes = [];
@@ -2001,6 +2002,28 @@
         </div>
         ${rows || `<div class="meta">Nothing here yet. Add skills you're thinking about, then use one when a slot opens up.</div>`}`;
     }
+    // Small weekly to-do list of side quests, each pinned to a weekday.
+    // Listed starting from today, so what's due next is on top.
+    const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    function todoToday() { return (shiftNow().getDay() + 6) % 7; }
+    function todoBody() {
+      const today = todoToday();
+      const rows = S.todos.slice()
+        .sort((a, b) => (a.day - today + 7) % 7 - (b.day - today + 7) % 7 || a.done - b.done)
+        .map(t => `<div class="card" style="display:flex;align-items:center;gap:9px;padding:10px 12px">
+          <button class="subcheck ${t.done ? "on" : ""}" style="--cat:var(--gold)" title="${t.done ? "Mark not done" : "Mark done"}" onclick="act.todoToggle('${t.id}')">${t.done ? "✓" : ""}</button>
+          <span class="subname" style="${t.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${esc(t.text)}</span>
+          <span class="badge" style="background:${t.day === today ? "#3A2E10" : "#1E1E24"};color:${t.day === today ? "var(--gold)" : "var(--muted)"}">${t.day === today ? "TODAY" : WEEKDAYS[t.day].toUpperCase()}</span>
+          <button class="del" title="Remove" onclick="act.todoDel('${t.id}')">✕</button>
+        </div>`).join("");
+      return `<div class="section" style="margin-top:14px">Side quests <span class="meta">· small to-dos for the week</span></div>
+        <div class="card" style="display:flex;gap:7px;flex-wrap:wrap">
+          <input id="tdn" placeholder="Side quest" style="flex:1 1 160px;min-width:0" onkeydown="if(event.key==='Enter')act.todoAdd()">
+          <select id="tdd" style="width:auto">${WEEKDAYS.map((d, i) => `<option value="${i}" ${i === today ? "selected" : ""}>${d}</option>`).join("")}</select>
+          <button class="gold" onclick="act.todoAdd()">Add</button>
+        </div>
+        ${rows || `<div class="meta">No side quests yet.</div>`}`;
+    }
     function focusBody() {
       settleFocus();
       const past = S.focus.past.slice(0, 12).map((p, i) => `<div class="card col" style="gap:4px">
@@ -2011,6 +2034,7 @@
       return `<div class="section">FOCUS SKILLS ・ 専門</div>
         <div class="hint">Pick <b>one deep skill</b> to go all in on for 6 months, and <b>one partial skill</b> to keep up beside it. A week counts as hit when enough of its days are checked off: all 7 for the deep skill, your chosen number for the partial one.</div>
         ${focusCard("deep")}${focusCard("partial")}
+        ${todoBody()}
         ${focusQueueBody()}
         ${past ? `<div class="section" style="margin-top:14px">Finished <span class="meta">· kept for your record</span></div>${past}` : ""}`;
     }
@@ -2056,6 +2080,26 @@
         if (!p || !confirm("Remove \"" + p.name + "\" from Finished? This can't be undone.")) return;
         S.focus.past.splice(i, 1);
         logTx("task", "Finished skill removed: " + p.name);
+        save(); render();
+      },
+      todoAdd() {
+        const el = document.getElementById("tdn");
+        const text = el.value.trim();
+        if (!text) return el.focus();
+        const day = parseInt(document.getElementById("tdd").value, 10) || 0;
+        S.todos.push({ id: "t" + Date.now(), text, day, done: false });
+        save(); render();
+        const again = document.getElementById("tdn");
+        if (again) again.focus();
+      },
+      todoToggle(id) {
+        const t = S.todos.find(x => x.id === id);
+        if (!t) return;
+        t.done = !t.done;
+        save(); render();
+      },
+      todoDel(id) {
+        S.todos = S.todos.filter(x => x.id !== id);
         save(); render();
       },
       focusQueueAdd() {
@@ -2628,7 +2672,7 @@
       if (e.key === KEY && e.newValue && S && e.newValue !== JSON.stringify(S)) { load(); render(true); }
     });
     let lastW = window.innerWidth;
-    window.addEventListener("resize", () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; render(); });
+    window.addEventListener("resize", () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; if (S) render(); });
 
     // ================= CLOUD SYNC (Supabase) =================
     // The browser copy stays the working copy: the app opens instantly and works
