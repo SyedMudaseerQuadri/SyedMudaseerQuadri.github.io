@@ -1241,7 +1241,7 @@
       } else {
         const xp = Math.round(50 * mult), min = Math.round(25 * rewardFactor());
         S.xp += xp; S.bank += min; S.catXp.Editing = (S.catXp.Editing || 0) + xp;
-        raidMsg = "⚔️ RAID CLEARED — +" + xp + " XP, +" + min + "m game time. Game time unlocked.";
+        raidMsg = "⚔️ RAID CLEARED — +" + xp + " XP, +" + min + "m game time.";
         logTx("raid", "Raid cleared", { xp, min, cat: "Editing", cid: rcid });
       }
       clearFatigueByEditing();
@@ -2206,7 +2206,6 @@
       const rank = rankOf(level);
       const cap = gameCap();
       const mult = streakMult();
-      const editingDone = S.raidToday || S.dailies.some(d => d.cat === "Editing" && d.done);
       const allDone = S.dailies.length > 0 && S.dailies.every(d => d.done);
       const gameLeft = Math.max(0, cap - S.usedToday);
       const phoneLeft = Math.max(0, PHONE_CAP - S.phoneToday);
@@ -2237,7 +2236,7 @@
       <div class="section" style="margin-top:0">⚔️ DEEP RAID — ${RAID_MIN} MIN</div>
       ${raidActive
           ? `<div class="raidclock" id="raidclock">${fmtClock(RAID_MIN * 60000 - (Date.now() - S.raidStart))}</div>
-          <div class="meta" style="margin:6px 0 10px">Locked in. When this hits zero your editing daily auto-completes and game time unlocks.</div>
+          <div class="meta" style="margin:6px 0 10px">Locked in. When this hits zero your editing daily auto-completes.</div>
           <button class="ghost" onclick="act.abandonRaid()">Abandon raid</button>`
           : `<div class="meta" style="margin-bottom:10px">One button between you and the timeline. Start it, edit until zero — the System does the rest.</div>
           <button class="gold" onclick="act.startRaid()">START RAID</button>`}
@@ -2571,25 +2570,21 @@
       <div class="meta">Miss a day and the System takes <b style="color:var(--vermilion)">${missPenalty()}m</b> — half your normal day (${Math.round(avgDayEarn())}m avg) — and the bank can go negative. A 🛡 shield covers one missed day.</div>
       <div class="meta">Game today: ${S.usedToday} / ${cap} min. Cap = 240 base ${smallSlain || bigSlain ? `+ boss bonuses (${smallSlain}×1% + ${bigSlain}×25%) = <b style="color:var(--gold)">${fmtH(cap)}</b>` : "(slay bosses to raise it)"}. Remaining: ${gameLeft} min.</div>
       <div class="track"><div class="fill" style="width:${Math.min(100, S.usedToday / cap * 100)}%;${S.usedToday >= cap ? "background:var(--vermilion)" : ""}"></div></div>
-      ${!editingDone
-          ? `<div style="color:var(--vermilion);font-weight:600">🔒 LOCKED — complete an Editing daily or a Raid first. Edit → then play. That's the hook.</div>`
-          : `<div class="row"><input id="gm" type="number" placeholder="Game minutes played"><button class="gold" ${gameLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logGame()">Spend</button></div>`}
+      <div class="row"><input id="gm" type="number" placeholder="Game minutes played"><button class="gold" ${gameLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logGame()">Spend</button></div>
       ${gameLeft <= 0 ? `<div style="color:var(--vermilion)">Game cap hit. Controller down. Timeline open. 🎬</div>` : ""}
     </div>
     <div class="card col" style="gap:10px">
       <div class="section">📱 PHONE TIME PROTOCOL</div>
       <div class="meta">Phone/scrolling today: ${S.phoneToday} / ${PHONE_CAP} min (fixed 2h cap). Spends from the same bank — doomscrolling costs the same currency as gaming. Remaining: ${phoneLeft} min.</div>
       <div class="track"><div class="fill" style="width:${Math.min(100, S.phoneToday / PHONE_CAP * 100)}%;background:var(--blue);${S.phoneToday >= PHONE_CAP ? "background:var(--vermilion)" : ""}"></div></div>
-      ${!editingDone
-          ? `<div style="color:var(--vermilion);font-weight:600">🔒 LOCKED behind editing too.</div>`
-          : `<div class="row"><input id="pm" type="number" placeholder="Phone minutes used"><button class="gold" style="background:var(--blue)" ${phoneLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logPhone()">Spend</button></div>`}
+      <div class="row"><input id="pm" type="number" placeholder="Phone minutes used"><button class="gold" style="background:var(--blue)" ${phoneLeft <= 0 || S.bank <= 0 ? "disabled" : ""} onclick="act.logPhone()">Spend</button></div>
       ${phoneLeft <= 0 ? `<div style="color:var(--vermilion)">Phone cap hit. Put it in another room. 📵</div>` : ""}
     </div>
     <div class="card col" style="gap:6px">
       <div class="section">THE ANTICIPATION RULE</div>
       <div style="font-size:14px;line-height:1.6;color:var(--soft)">
         The dopamine isn't in the reward — it's in the <b>wait</b>. The chest only unlocks after ALL dailies. The loot is random.
-        Game and phone time are <b>earned, capped, and locked behind editing</b>. Streaks multiply your XP (7d ×1.1 · 14d ×1.2 · 30d ×1.5) —
+        Game and phone time are <b>earned and capped</b>. Streaks multiply your XP (7d ×1.1 · 14d ×1.2 · 30d ×1.5) —
         and breaking one should sting. Missing a full day triggers <b>Fatigue</b>: half rewards until you edit again.
       </div>
     </div>`;
