@@ -1125,6 +1125,13 @@
         S.tomorrow = [];
         S.usedToday = 0; S.phoneToday = 0; S.chestOpened = false; S.bankStart = S.bank; S.raidToday = false; S.anyToday = false;
       }
+      // One-off pardon: away for college work, so lift this fatigue once.
+      // Runs after the daily reset so it also covers a reset on this same load.
+      if (!S.fixes.includes("fatigue-2026-11-07")) {
+        S.fatigued = false;
+        S.fixes.push("fatigue-2026-11-07");
+        setTimeout(save, 0);
+      }
       // --- weekly reset (Monday 8:40 AM) ---
       const thisMonday = mondayOf(shiftNow());
       if (!S.weekStart) S.weekStart = thisMonday;
