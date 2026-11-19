@@ -1132,6 +1132,12 @@
         S.fixes.push("fatigue-2026-11-07");
         setTimeout(save, 0);
       }
+      // One-off pardon: was in an accident, so lift this fatigue once.
+      if (!S.fixes.includes("fatigue-2026-11-19")) {
+        S.fatigued = false;
+        S.fixes.push("fatigue-2026-11-19");
+        setTimeout(save, 0);
+      }
       // --- weekly reset (Monday 8:40 AM) ---
       const thisMonday = mondayOf(shiftNow());
       if (!S.weekStart) S.weekStart = thisMonday;
