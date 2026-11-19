@@ -1932,14 +1932,9 @@
       }
       return { weeks, hits, cur, checkedToday: today in sk.days };
     }
-    // Each missed day before today pushes the deep skill's end back by one day,
-    // so the lock always covers a full 6 months of checked days.
+    // The deep skill ends a fixed 6 months after it starts; missed days no longer extend it.
     function focusSync(sk) {
-      let missed = 0;
-      for (let k = sk.start; k < focusToday(); k = addDays(k, 1)) {
-        if (!(k in sk.days && sk.days[k] >= (sk.minutes || 0))) missed++;
-      }
-      sk.end = addDays(focusEnd(sk.start), missed);
+      sk.end = focusEnd(sk.start);
     }
     // A finished 6-month window moves out of the way and into the record.
     function settleFocus() {
@@ -1964,7 +1959,7 @@
       if (!sk) {
         return `<div class="card col" style="gap:8px">
         <div style="font-weight:600">${kind === "deep" ? "🎯 Deep skill" : "🌗 Partial skill"} <span class="meta">· 6 months</span></div>
-        <div class="meta">${kind === "deep" ? "Every day for 6 months. The one skill you go all in on. Once started it's locked for the full 6 months, then you can pick a new one. Each missed day adds one day to the end, so you still get 6 months of checked days." : "Keep it alive alongside the deep one: a set number of days a week, optionally with a minimum time each day. You can stop it any time."}</div>
+        <div class="meta">${kind === "deep" ? "Every day for 6 months. The one skill you go all in on. Once started it's locked for the full 6 months, then you can pick a new one." : "Keep it alive alongside the deep one: a set number of days a week, optionally with a minimum time each day. You can stop it any time."}</div>
         <input id="fn-${kind}" placeholder="Skill name">
         <input id="fa-${kind}" placeholder="Area or note (optional)">
         <div class="row">
