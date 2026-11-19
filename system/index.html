@@ -654,7 +654,7 @@
         logTx("card", "Exception Card dropped (" + src + ")");
       }
     }
-    const CROSS_PCT = 0.6;       // dailies needed (with all habits) to earn the day's red cross
+    const CROSS_PCT = 0.5;       // dailies needed (with at least one habit) to earn the day's red cross
     // Locks ride the reset clock rather than a rolling timer: a locked daily frees
     // itself at the next 8:40 AM rollover, a locked weekly at the next Monday 8:40 AM.
     // Nothing to count down — the release time is the reset you already know.
@@ -931,7 +931,7 @@
       <div class="meta">${net >= 0 ? `Surplus <b style="color:var(--chart-green)">+${net}m</b> — the bank grows.` : `Deficit <b style="color:var(--vermilion)">${net}m</b> — spending more than you earn.`}</div>
     </div>`;
     }
-    // Consistency calendar — a day earns its red ✗ when every habit is ticked
+    // Consistency calendar — a day earns its red ✗ when at least one habit is ticked
     // AND at least CROSS_PCT of that day's dailies are done. Reads S.marks.
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
       "August", "September", "October", "November", "December"];
@@ -973,7 +973,7 @@
       </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;max-width:400px;margin:0 auto">${dows}</div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;max-width:400px;margin:0 auto">${cells}</div>
-      <div class="meta"><b style="color:var(--vermilion)">✗ ${crosses}</b> marked this month · <b style="color:var(--vermilion)">${perfect}</b> perfect · ${logged} days logged. The ✗ appears once <b>every habit</b> is ticked and <b>${Math.round(CROSS_PCT * 100)}%</b> of your dailies are done, then deepens from faint to full red as you climb to 100%. A grey dot means you worked but stopped short of the bar. Hover any day for its numbers.</div>
+      <div class="meta"><b style="color:var(--vermilion)">✗ ${crosses}</b> marked this month · <b style="color:var(--vermilion)">${perfect}</b> perfect · ${logged} days logged. The ✗ appears once <b>at least one habit</b> is ticked and <b>${Math.round(CROSS_PCT * 100)}%</b> of your dailies are done, then deepens from faint to full red as you climb to 100%. A grey dot means you worked but stopped short of the bar. Hover any day for its numbers.</div>
     </div>`;
     }
     function toCSV(rows) {
@@ -1018,9 +1018,9 @@
       const dt = S.dailies.length + gd;
       S.marks[k] = { h: hd, ht, d: dd, dt, gd, gh };
     }
-    // The day's mark is graded, not pass/fail: every habit must be ticked, and then
+    // The day's mark is graded, not pass/fail: at least one habit must be ticked, and then
     // the ✗ fades in from CROSS_PCT of your dailies up to a full-blooded 100%.
-    function habitsClear(mk) { return !!mk && mk.h === mk.ht; }
+    function habitsClear(mk) { return !!mk && (mk.ht === 0 || mk.h >= 1); }
     function dayScore(mk) { return (!mk || !mk.dt) ? 0 : mk.d / mk.dt; }
     function crossAlpha(mk) {
       if (!habitsClear(mk)) return 0;
@@ -2244,7 +2244,7 @@
       ${raidMsg ? `<div style="color:var(--gold);font-weight:600;font-size:13px;margin-top:10px">${esc(raidMsg)}</div>` : ""}
     </div>`
         + `<div class="section" style="margin-top:16px">🪷 HABIT QUESTS <span class="meta">· ${habitDone}/${S.habits.length} · +${HABIT_MIN}m each</span></div>
-    <div class="hint">The small non-negotiables — brush, bathe, read, stretch. Every habit ticked is <b style="color:var(--gold)">+${HABIT_MIN} min game time</b> and +${HABIT_XP} XP. Clear <b>all</b> of them (plus ${Math.round(CROSS_PCT * 100)}% of your dailies) to earn the day's ✗ on the calendar.</div>`
+    <div class="hint">The small non-negotiables — brush, bathe, read, stretch. Every habit ticked is <b style="color:var(--gold)">+${HABIT_MIN} min game time</b> and +${HABIT_XP} XP. Tick <b>at least one</b> (plus ${Math.round(CROSS_PCT * 100)}% of your dailies) to earn the day's ✗ on the calendar.</div>`
         + (S.habits.length ? S.habits.map(h => `
     <div class="card" style="opacity:${h.done ? "0.55" : "1"};border-left:3px solid ${CATS[h.cat].color}">
       <button class="check" style="border-color:${CATS[h.cat].color};background:${h.done ? CATS[h.cat].color : "transparent"}" onclick="act.toggleHabit('${h.id}')">${h.done ? "✓" : ""}</button>
